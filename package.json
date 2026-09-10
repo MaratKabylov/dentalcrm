@@ -8,18 +8,24 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "concurrently -n \"api,web,worker\" -c \"blue,green,magenta\" \"npm run dev:api\" \"npm run dev:web\" \"npm run dev:worker\"",
+    "dev:all": "concurrently -n \"api,web,worker\" -c \"blue,green,magenta\" \"npm run dev:api\" \"npm run dev:web\" \"npm run dev:worker\"",
+    "start": "concurrently -n \"api,web,worker\" -c \"blue,green,magenta\" \"npm run start:prod --workspace=apps/api\" \"npm run start --workspace=apps/web\" \"npm run start --workspace=apps/worker\"",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "dev:api": "npm run start:dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:worker": "npm run start:dev --workspace=apps/worker",
+    "seed": "npx ts-node -r tsconfig-paths/register apps/api/prisma/seed.ts",
     "docker:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
     "docker:down": "docker compose -f infrastructure/docker/docker-compose.yml down",
     "prisma:generate": "npm run prisma:generate --workspace=apps/api",
-    "prisma:migrate": "npm run prisma:migrate --workspace=apps/api"
+    "prisma:migrate": "npm run prisma:migrate --workspace=apps/api",
+    "prisma:push": "npm run prisma:db:push --workspace=apps/api"
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "typescript": "^5.7.3"
   }
 }
