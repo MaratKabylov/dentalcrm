@@ -1,0 +1,20 @@
+{
+  "name": "@dentalcrm/worker",
+  "version": "1.0.0",
+  "description": "Background Outbox Event Processor & Scheduled Task Worker",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@dentalcrm/contracts": "*",
+    "@prisma/client": "^6.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

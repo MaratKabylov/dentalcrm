@@ -1,0 +1,15 @@
+{
+  "name": "@dentalcrm/contracts",
+  "version": "1.0.0",
+  "description": "Shared domain contracts, DTOs, events and error codes",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
