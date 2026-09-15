@@ -17,4 +17,5 @@ Implementation of the architecture in `DENTAL_SAAS_MASTER_ARCHITECTURE.md`.
 
 In local `AUTH_MODE=development`, send `x-tenant-id` and `x-user-subject` headers. This mode is rejected when `NODE_ENV=production`. Production uses signed OIDC access tokens and JWKS discovery.
 
-See [Foundation](docs/architecture/foundation.md) and [Clinic Core](docs/architecture/clinic-core.md) for boundaries, security assumptions, API surface, and verification commands.
+See [Foundation](docs/architecture/foundation.md), [Clinic Core](docs/architecture/clinic-core.md), and
+[Clinical Core](docs/architecture/clinical-core.md) for boundaries, security assumptions, API surface, and verification commands.
