@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const experimental = {
-  typedEnv: true,
-  agentRules: false
+  typedEnv: true
 } as NonNullable<NextConfig["experimental"]>;
 
 const nextConfig: NextConfig = {

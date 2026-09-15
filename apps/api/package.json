@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsc -p tsconfig.build.json && node --enable-source-maps dist/main.js",
     "start": "node dist/main.js",
     "lint": "eslint src test",
     "test": "vitest run --exclude test/**/*.integration.test.ts",
-    "test:integration": "vitest run test/tenant-isolation.integration.test.ts",
+    "test:integration": "vitest run test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const databaseUrl = process.env.DATABASE_URL;
-const suite = databaseUrl ? describe : describe.skip;
+const databaseUrl = process.env.DATABASE_URL ?? "postgresql://dental:local-development-only@localhost:5432/dental";
+const suite = describe;
 
 suite("PostgreSQL tenant isolation", () => {
   const client = new pg.Client({ connectionString: databaseUrl });

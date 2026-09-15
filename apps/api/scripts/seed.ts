@@ -42,6 +42,10 @@ try {
      ON CONFLICT (tenant_id, code) DO NOTHING`,
     [tenantId, organization.rows[0]!.id, userId]
   );
+  const branch = await client.query<{ id: string }>(
+    "SELECT id FROM branches WHERE tenant_id = $1 AND code = 'main'",
+    [tenantId]
+  );
   const membershipId = randomUUID();
   await client.query(
     `INSERT INTO memberships (id, tenant_id, user_id, status, created_by, updated_by)
@@ -72,6 +76,31 @@ try {
      ON CONFLICT DO NOTHING`,
     [tenantId, membership.rows[0]!.id, role.rows[0]!.id, userId]
   );
+  const branchId = branch.rows[0]!.id;
+  await client.query(
+    `INSERT INTO rooms (tenant_id, branch_id, code, name, created_by, updated_by)
+     VALUES ($1, $2, 'room-1', 'Кабинет 1', $3, $3) ON CONFLICT (tenant_id, branch_id, code) DO NOTHING`,
+    [tenantId, branchId, userId]
+  );
+  const room = await client.query<{ id: string }>("SELECT id FROM rooms WHERE tenant_id=$1 AND branch_id=$2 AND code='room-1'", [tenantId, branchId]);
+  await client.query(
+    `INSERT INTO chairs (tenant_id, branch_id, room_id, code, name, created_by, updated_by)
+     VALUES ($1, $2, $3, 'chair-1', 'Кресло 1', $4, $4) ON CONFLICT (tenant_id, branch_id, code) DO NOTHING`,
+    [tenantId, branchId, room.rows[0]!.id, userId]
+  );
+  let employee = await client.query<{ id: string }>("SELECT id FROM employees WHERE tenant_id=$1 AND email='doctor@example.local'", [tenantId]);
+  if (!employee.rows[0]) {
+    employee = await client.query<{ id: string }>(
+      `INSERT INTO employees (tenant_id, first_name, last_name, email, created_by, updated_by)
+       VALUES ($1, 'Айдана', 'Серикова', 'doctor@example.local', $2, $2) RETURNING id`, [tenantId, userId]);
+  }
+  await client.query(`INSERT INTO employee_branches (tenant_id, employee_id, branch_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+    [tenantId, employee.rows[0]!.id, branchId]);
+  await client.query(`INSERT INTO doctors (tenant_id, employee_id, specialty) VALUES ($1,$2,'Терапевт') ON CONFLICT (tenant_id, employee_id) DO NOTHING`,
+    [tenantId, employee.rows[0]!.id]);
+  await client.query(
+    `INSERT INTO services (tenant_id, code, name, duration_minutes, created_by, updated_by)
+     VALUES ($1,'consultation','Первичная консультация',30,$2,$2) ON CONFLICT (tenant_id, code) DO NOTHING`, [tenantId, userId]);
   await client.query("COMMIT");
   console.info(JSON.stringify({ tenantId, subject, headers: { "x-tenant-id": tenantId, "x-user-subject": subject } }, null, 2));
 } catch (error) {
