@@ -7,6 +7,12 @@ interface MembershipRow {
   permission_key: string | null;
 }
 
+interface AccessScopeRow {
+  scope_type: "tenant" | "organization" | "branch";
+  organization_id: string | null;
+  branch_id: string | null;
+}
+
 @Injectable()
 export class IdentityRepository {
   constructor(private readonly database: DatabaseService) {}
@@ -15,6 +21,9 @@ export class IdentityRepository {
     userId: string;
     membershipId: string;
     permissions: Set<string>;
+    tenantWide: boolean;
+    organizationIds: Set<string>;
+    branchIds: Set<string>;
   } | null> {
     return this.database.withTenant({ tenantId }, async (client) => {
       const result = await client.query<MembershipRow>(
@@ -28,10 +37,18 @@ export class IdentityRepository {
       );
       const first = result.rows[0];
       if (!first) return null;
+      const scopes = await client.query<AccessScopeRow>(
+        `SELECT scope_type,organization_id,branch_id FROM access_scopes
+         WHERE membership_id=$1 ORDER BY scope_type,organization_id,branch_id`,
+        [first.membership_id]
+      );
       return {
         userId: first.user_id,
         membershipId: first.membership_id,
-        permissions: new Set(result.rows.flatMap((row) => (row.permission_key ? [row.permission_key] : [])))
+        permissions: new Set(result.rows.flatMap((row) => (row.permission_key ? [row.permission_key] : []))),
+        tenantWide: scopes.rows.some((scope) => scope.scope_type === "tenant"),
+        organizationIds: new Set(scopes.rows.flatMap((scope) => scope.organization_id ? [scope.organization_id] : [])),
+        branchIds: new Set(scopes.rows.flatMap((scope) => scope.branch_id ? [scope.branch_id] : []))
       };
     });
   }

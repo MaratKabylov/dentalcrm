@@ -2,6 +2,8 @@ import type { OrganizationDto } from "@dental/contracts";
 import { Injectable } from "@nestjs/common";
 import type { PoolClient } from "pg";
 import { DatabaseService } from "../../database/database.service.js";
+import type { AuthContext } from "../identity/auth-context.js";
+import { organizationScopeSql, scopeValues } from "../identity/access-scope.js";
 
 interface OrganizationRow {
   id: string;
@@ -14,13 +16,14 @@ interface OrganizationRow {
 export class OrganizationsRepository {
   constructor(private readonly database: DatabaseService) {}
 
-  async list(tenantId: string): Promise<OrganizationDto[]> {
-    return this.database.withTenant({ tenantId }, async (client) => {
+  async list(auth: AuthContext): Promise<OrganizationDto[]> {
+    return this.database.withTenant(auth, async (client) => {
       const result = await client.query<OrganizationRow>(
         `SELECT id, name, code, created_at
-         FROM organizations
-         WHERE archived_at IS NULL
-         ORDER BY name`
+         FROM organizations o
+         WHERE archived_at IS NULL AND ${auth.tenantWide ? "TRUE" : organizationScopeSql("o")}
+         ORDER BY name`,
+        auth.tenantWide ? [] : scopeValues(auth)
       );
       return result.rows.map(toDto);
     });

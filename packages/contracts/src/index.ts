@@ -60,6 +60,7 @@ export const createEmployeeSchema = z.object({
 });
 
 export const createServiceSchema = z.object({
+  organizationId: uuidSchema,
   categoryId: uuidSchema.optional(),
   code: codeSchema,
   name: z.string().trim().min(1).max(180),
@@ -67,6 +68,7 @@ export const createServiceSchema = z.object({
 });
 
 export const createPriceListSchema = z.object({
+  organizationId: uuidSchema,
   branchId: uuidSchema.optional(),
   name: z.string().trim().min(1).max(160),
   currency: z.string().trim().length(3).default("KZT"),
@@ -242,6 +244,7 @@ const treatmentPlanItemSchema = z.object({
 });
 
 export const createTreatmentPlanSchema = z.object({
+  organizationId: uuidSchema,
   patientId: uuidSchema,
   title: z.string().trim().min(1).max(180),
   currency: z.string().trim().length(3).default("KZT"),
@@ -359,6 +362,7 @@ export const closeCashSessionSchema = z.object({
 });
 
 export const createExpenseCategorySchema = z.object({
+  organizationId: uuidSchema,
   code: codeSchema,
   name: z.string().trim().min(1).max(160),
   currency: currencySchema.default("KZT")
@@ -396,12 +400,14 @@ export const updateBranchSchema = z.object({
 }).refine((value) => Object.keys(value).length > 0);
 
 export const createServiceCategorySchema = z.object({
+  organizationId: uuidSchema,
   code: codeSchema,
   name: z.string().trim().min(1).max(160)
 });
 
 export const updateServiceCategorySchema = z.object({ name: z.string().trim().min(1).max(160) });
 export const createDiagnosisCatalogSchema = z.object({
+  organizationId: uuidSchema,
   code: z.string().trim().min(1).max(32),
   name: z.string().trim().min(1).max(500)
 });

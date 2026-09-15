@@ -8,6 +8,7 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
+import { assertBranchAccess, assertOrganizationAccess, organizationScopeSql, scopeValues } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 
 interface PaymentRow {
@@ -26,7 +27,14 @@ export class FinanceService {
     const total = sumMoney(input.items.map((item) => item.quantity * item.unitPriceMinor));
     return this.database.withTenant(auth, async (client) => {
       await this.lockPatient(client, input.patientId);
-      await this.assertPatientAndBranch(client, input.patientId, input.branchId);
+      const organizationId=await this.assertPatientAndBranch(client,auth,input.patientId,input.branchId);
+      for(const item of input.items){
+        if(item.serviceId && !(await client.query("SELECT 1 FROM services WHERE id=$1 AND organization_id=$2 AND active",[item.serviceId,organizationId])).rows[0])
+          throw bad("SERVICE_ORGANIZATION_MISMATCH","Charge service belongs to another organization");
+        if(item.procedureId && !(await client.query(`SELECT 1 FROM procedures p JOIN encounters e ON e.id=p.encounter_id
+          JOIN branches b ON b.id=e.branch_id WHERE p.id=$1 AND b.organization_id=$2`,[item.procedureId,organizationId])).rows[0])
+          throw bad("PROCEDURE_ORGANIZATION_MISMATCH","Charge procedure belongs to another organization");
+      }
       const receivable = await this.account(client, auth, `patient-receivable:${input.patientId}`, "Patient receivable",
         "asset", "patient_receivable", input.currency, input.branchId, input.patientId);
       const revenue = await this.account(client, auth, `revenue:${input.currency}`, "Clinical revenue",
@@ -69,9 +77,9 @@ export class FinanceService {
     if (depositFunded > allocated) throw bad("DEPOSIT_CANNOT_BE_REDEPOSITED", "Deposit-funded amount must be allocated to charges");
     return this.database.withTenant(auth, async (client) => {
       const existing = (await client.query<{ id: string }>("SELECT id FROM payments WHERE idempotency_key=$1", [idempotencyKey])).rows[0];
-      if (existing) return this.paymentAggregate(client, existing.id);
+      if (existing) {const aggregate=await this.paymentAggregate(client,existing.id);await assertBranchAccess(client,auth,String(aggregate.branchId));return aggregate;}
       await this.lockPatient(client, input.patientId);
-      await this.assertPatientAndBranch(client, input.patientId, input.branchId);
+      await this.assertPatientAndBranch(client,auth,input.patientId,input.branchId);
       for (const [chargeId, amount] of allocations) await this.assertChargeOutstanding(client, chargeId, input.patientId, input.currency, amount);
       const transactionId = await this.postTransaction(client,auth,"payment",input.currency,input.note ?? "Patient payment",idempotencyKey);
       const payment = (await client.query<{ id: string; postedAt: Date }>(`INSERT INTO payments
@@ -133,7 +141,8 @@ export class FinanceService {
   }
 
   getPayment(auth: AuthContext, id: string) {
-    return this.database.withTenant(auth, (client) => this.paymentAggregate(client,id));
+    return this.database.withTenant(auth,async(client)=>{const payment=await this.paymentAggregate(client,id);
+      await assertBranchAccess(client,auth,String(payment.branchId));return payment;});
   }
 
   refund(auth: AuthContext, paymentId: string, idempotencyKey: string, input: CreateRefundInput) {
@@ -142,9 +151,10 @@ export class FinanceService {
     const total = sumMoney([...sources.values()]);
     if (total !== sumMoney([...targets.values()])) throw bad("REFUND_NOT_BALANCED", "Refund parts and allocations must have equal totals");
     return this.database.withTenant(auth, async (client) => {
+      const payment = await this.findPayment(client,paymentId,true);
+      await assertBranchAccess(client,auth,payment.branchId);
       const existing = (await client.query<Record<string,unknown>>("SELECT id,total_amount_minor::text AS \"totalAmountMinor\",reason,posted_at AS \"postedAt\" FROM refunds WHERE idempotency_key=$1",[idempotencyKey])).rows[0];
       if (existing) return moneyObject(existing);
-      const payment = await this.findPayment(client,paymentId,true);
       await this.lockPatient(client,payment.patientId);
       const sourceRows = new Map<string,{ accountId: string; cashboxId: string | null; method: string; remaining: number }>();
       for (const [partId, amount] of sources) {
@@ -252,8 +262,7 @@ export class FinanceService {
 
   createCashbox(auth:AuthContext,input:CreateCashboxInput){
     return this.database.withTenant(auth,async(client)=>{
-      const branch=(await client.query("SELECT 1 FROM branches WHERE id=$1 AND archived_at IS NULL",[input.branchId])).rows[0];
-      if(!branch) throw new ApiException(HttpStatus.NOT_FOUND,"BRANCH_NOT_FOUND","Branch not found");
+      await assertBranchAccess(client,auth,input.branchId);
       const accountId=await this.account(client,auth,`cashbox:${input.branchId}:${input.code}`,input.name,"asset","cash",input.currency,input.branchId);
       const row=(await client.query<Record<string,unknown>>(`INSERT INTO cashboxes
         (tenant_id,branch_id,financial_account_id,code,name,currency,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -266,13 +275,16 @@ export class FinanceService {
 
   listCashboxes(auth:AuthContext){return this.database.withTenant(auth,async(client)=>(await client.query(`SELECT c.id,c.branch_id AS "branchId",
     c.code,c.name,c.currency,b.name AS "branchName",EXISTS(SELECT 1 FROM cash_sessions s WHERE s.cashbox_id=c.id AND s.status='open') AS "hasOpenSession"
-    FROM cashboxes c JOIN branches b ON b.id=c.branch_id WHERE c.archived_at IS NULL ORDER BY c.name`)).rows);}
+    FROM cashboxes c JOIN branches b ON b.id=c.branch_id WHERE c.archived_at IS NULL AND
+    ${auth.tenantWide?"TRUE":`(b.organization_id=ANY($1::uuid[]) OR b.id=ANY($2::uuid[]))`} ORDER BY c.name`,
+    auth.tenantWide?([] as unknown[]):scopeValues(auth))).rows);}
 
   updateCashbox(auth:AuthContext,id:string,name:string){return this.renameFinanceResource(auth,"cashboxes","cashbox",id,name);}
   archiveCashbox(auth:AuthContext,id:string){
     return this.database.withTenant(auth,async(client)=>{
-      const before=(await client.query<Record<string,unknown>>("SELECT id,code,name FROM cashboxes WHERE id=$1 AND archived_at IS NULL FOR UPDATE",[id])).rows[0];
+      const before=(await client.query<Record<string,unknown>>("SELECT id,branch_id,code,name FROM cashboxes WHERE id=$1 AND archived_at IS NULL FOR UPDATE",[id])).rows[0];
       if(!before) throw new ApiException(HttpStatus.NOT_FOUND,"CASHBOX_NOT_FOUND","Cashbox not found");
+      await assertBranchAccess(client,auth,String(before.branch_id));
       if((await client.query("SELECT 1 FROM cash_sessions WHERE cashbox_id=$1 AND status='open'",[id])).rows[0])
         throw new ApiException(HttpStatus.CONFLICT,"CASH_SESSION_OPEN","Close the cash session before archiving the cashbox");
       await client.query("UPDATE cashboxes SET archived_at=now() WHERE id=$1",[id]);
@@ -285,8 +297,9 @@ export class FinanceService {
 
   openCashSession(auth:AuthContext,cashboxId:string,input:OpenCashSessionInput){
     return this.database.withTenant(auth,async(client)=>{
-      const box=(await client.query("SELECT 1 FROM cashboxes WHERE id=$1 AND archived_at IS NULL",[cashboxId])).rows[0];
+      const box=(await client.query<{branchId:string}>(`SELECT branch_id AS "branchId" FROM cashboxes WHERE id=$1 AND archived_at IS NULL`,[cashboxId])).rows[0];
       if(!box) throw new ApiException(HttpStatus.NOT_FOUND,"CASHBOX_NOT_FOUND","Cashbox not found");
+      await assertBranchAccess(client,auth,box.branchId);
       try{
         const row=(await client.query<Record<string,unknown>>(`INSERT INTO cash_sessions
           (tenant_id,cashbox_id,opening_amount_minor,opened_by) VALUES ($1,$2,$3,$4)
@@ -300,8 +313,10 @@ export class FinanceService {
 
   closeCashSession(auth:AuthContext,id:string,input:CloseCashSessionInput){
     return this.database.withTenant(auth,async(client)=>{
-      const row=(await client.query<{opening:string;status:string}>(`SELECT opening_amount_minor::text AS opening,status FROM cash_sessions WHERE id=$1 FOR UPDATE`,[id])).rows[0];
+      const row=(await client.query<{opening:string;status:string;branchId:string}>(`SELECT s.opening_amount_minor::text AS opening,s.status,
+        c.branch_id AS "branchId" FROM cash_sessions s JOIN cashboxes c ON c.id=s.cashbox_id WHERE s.id=$1 FOR UPDATE OF s`,[id])).rows[0];
       if(!row) throw new ApiException(HttpStatus.NOT_FOUND,"CASH_SESSION_NOT_FOUND","Cash session not found");
+      await assertBranchAccess(client,auth,row.branchId);
       if(row.status!=="open") throw new ApiException(HttpStatus.CONFLICT,"CASH_SESSION_CLOSED","Cash session is already closed");
       const movement=(await client.query<{amount:string}>(`SELECT COALESCE(sum(CASE direction WHEN 'inflow' THEN amount_minor ELSE -amount_minor END),0)::text AS amount
         FROM cash_transactions WHERE cash_session_id=$1`,[id])).rows[0]!;
@@ -320,20 +335,25 @@ export class FinanceService {
 
   createExpenseCategory(auth:AuthContext,input:CreateExpenseCategoryInput){
     return this.database.withTenant(auth,async(client)=>{
-      const accountId=await this.account(client,auth,`expense:${input.code}`,input.name,"expense","operating_expense",input.currency);
+      await assertOrganizationAccess(client,auth,input.organizationId);
+      const accountId=await this.account(client,auth,`expense:${input.organizationId}:${input.code}`,input.name,"expense","operating_expense",input.currency);
       const row=(await client.query<Record<string,unknown>>(`INSERT INTO expense_categories
-        (tenant_id,code,name,expense_account_id,currency,created_by) VALUES ($1,$2,$3,$4,$5,$6)
-        RETURNING id,code,name,currency,created_at AS "createdAt"`,[auth.tenantId,input.code,input.name,accountId,input.currency,auth.userId])).rows[0]!;
+        (tenant_id,organization_id,code,name,expense_account_id,currency,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)
+        RETURNING id,organization_id AS "organizationId",code,name,currency,created_at AS "createdAt"`,
+        [auth.tenantId,input.organizationId,input.code,input.name,accountId,input.currency,auth.userId])).rows[0]!;
       return row;
     });
   }
 
-  listExpenseCategories(auth:AuthContext){return this.database.withTenant(auth,async(client)=>(await client.query(`SELECT id,code,name,currency
-    FROM expense_categories WHERE archived_at IS NULL ORDER BY name`)).rows);}
+  listExpenseCategories(auth:AuthContext){return this.database.withTenant(auth,async(client)=>(await client.query(`SELECT e.id,e.organization_id AS "organizationId",
+    o.name AS "organizationName",e.code,e.name,e.currency FROM expense_categories e JOIN organizations o ON o.id=e.organization_id
+    WHERE e.archived_at IS NULL AND ${auth.tenantWide?"TRUE":organizationScopeSql("e")} ORDER BY o.name,e.name`,
+    auth.tenantWide?([] as unknown[]):scopeValues(auth))).rows);}
   updateExpenseCategory(auth:AuthContext,id:string,name:string){return this.renameFinanceResource(auth,"expense_categories","expense_category",id,name);}
   archiveExpenseCategory(auth:AuthContext,id:string){return this.database.withTenant(auth,async(client)=>{
-    const before=(await client.query<Record<string,unknown>>("SELECT id,code,name FROM expense_categories WHERE id=$1 AND archived_at IS NULL FOR UPDATE",[id])).rows[0];
+    const before=(await client.query<Record<string,unknown>>("SELECT id,organization_id,code,name FROM expense_categories WHERE id=$1 AND archived_at IS NULL FOR UPDATE",[id])).rows[0];
     if(!before) throw new ApiException(HttpStatus.NOT_FOUND,"EXPENSE_CATEGORY_NOT_FOUND","Expense category not found");
+    await assertOrganizationAccess(client,auth,String(before.organization_id));
     await client.query("UPDATE expense_categories SET archived_at=now() WHERE id=$1",[id]);
     await this.audit.append(client,{tenantId:auth.tenantId,actorUserId:auth.userId,action:"expense_category.archived",
       entityType:"expense_category",entityId:id,before,after:{id,archived:true},requestId:auth.requestId});
@@ -343,11 +363,12 @@ export class FinanceService {
 
   createExpense(auth:AuthContext,input:CreateExpenseInput){
     return this.database.withTenant(auth,async(client)=>{
+      const organizationId=await assertBranchAccess(client,auth,input.branchId);
       const source=(await client.query<{accountId:string;currency:string}>(`SELECT c.financial_account_id AS "accountId",c.currency
         FROM cashboxes c WHERE c.id=$1 AND c.branch_id=$2 AND c.archived_at IS NULL`,[input.cashboxId,input.branchId])).rows[0];
       if(!source) throw bad("INVALID_EXPENSE_CASHBOX","Cashbox does not belong to the branch");
       const category=(await client.query<{accountId:string;currency:string}>(`SELECT expense_account_id AS "accountId",currency
-        FROM expense_categories WHERE id=$1 AND archived_at IS NULL`,[input.categoryId])).rows[0];
+        FROM expense_categories WHERE id=$1 AND organization_id=$2 AND archived_at IS NULL`,[input.categoryId,organizationId])).rows[0];
       if(!category) throw new ApiException(HttpStatus.NOT_FOUND,"EXPENSE_CATEGORY_NOT_FOUND","Expense category not found");
       if(category.currency!==source.currency) throw bad("EXPENSE_CURRENCY_MISMATCH","Expense category and cashbox currencies differ");
       const session=await this.openSession(client,input.cashboxId);
@@ -386,8 +407,10 @@ export class FinanceService {
 
   private renameFinanceResource(auth:AuthContext,table:"cashboxes"|"expense_categories",entityType:string,id:string,name:string){
     return this.database.withTenant(auth,async(client)=>{
-      const before=(await client.query<Record<string,unknown>>(`SELECT id,code,name FROM ${table} WHERE id=$1 AND archived_at IS NULL FOR UPDATE`,[id])).rows[0];
+      const before=(await client.query<Record<string,unknown>>(`SELECT * FROM ${table} WHERE id=$1 AND archived_at IS NULL FOR UPDATE`,[id])).rows[0];
       if(!before) throw new ApiException(HttpStatus.NOT_FOUND,"RESOURCE_NOT_FOUND","Resource not found");
+      if(typeof before.organization_id==="string") await assertOrganizationAccess(client,auth,before.organization_id);
+      if(typeof before.branch_id==="string") await assertBranchAccess(client,auth,before.branch_id);
       const after=(await client.query<Record<string,unknown>>(`UPDATE ${table} SET name=$2 WHERE id=$1 RETURNING id,code,name,currency`,[id,name])).rows[0]!;
       await this.audit.append(client,{tenantId:auth.tenantId,actorUserId:auth.userId,action:`${entityType}.updated`,entityType,
         entityId:id,before,after,requestId:auth.requestId});
@@ -403,10 +426,9 @@ export class FinanceService {
     if(!row) throw new ApiException(HttpStatus.NOT_FOUND,"PAYMENT_NOT_FOUND","Payment not found"); return row;
   }
 
-  private async assertPatientAndBranch(client:PoolClient,patientId:string,branchId:string){
+  private async assertPatientAndBranch(client:PoolClient,auth:AuthContext,patientId:string,branchId:string):Promise<string>{
     await this.assertPatient(client,patientId);
-    if(!(await client.query("SELECT 1 FROM branches WHERE id=$1 AND archived_at IS NULL",[branchId])).rows[0])
-      throw new ApiException(HttpStatus.NOT_FOUND,"BRANCH_NOT_FOUND","Branch not found");
+    return assertBranchAccess(client,auth,branchId);
   }
   private async assertPatient(client:PoolClient,patientId:string){
     if(!(await client.query("SELECT 1 FROM patients WHERE id=$1 AND archived_at IS NULL",[patientId])).rows[0])

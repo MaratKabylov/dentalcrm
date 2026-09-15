@@ -29,6 +29,9 @@ export class AuthGuard implements CanActivate {
       userId: membership.userId,
       membershipId: membership.membershipId,
       permissions: membership.permissions,
+      tenantWide: membership.tenantWide,
+      organizationIds: membership.organizationIds,
+      branchIds: membership.branchIds,
       requestId: request.requestId ?? "unknown"
     };
     return true;

@@ -95,12 +95,12 @@ function CreateFields({resource,data}:{resource:ResourceKey;data:Record<string,I
     case "rooms":return <><Select name="branchId" label="Филиал" items={branches}/><Field name="code" label="Код" placeholder="room-1"/><Field name="name" label="Название" placeholder="Кабинет 1"/></>;
     case "chairs":return <><Select name="branchId" label="Филиал" items={branches}/><Select name="roomId" label="Кабинет" items={rooms} optional/><Field name="code" label="Код" placeholder="chair-1"/><Field name="name" label="Название" placeholder="Кресло 1"/></>;
     case "employees":return <><Select name="branchId" label="Филиал" items={branches}/><div className="catalog-form-row"><Field name="lastName" label="Фамилия"/><Field name="firstName" label="Имя"/></div><Field name="email" label="Email" type="email" optional/><label className="check-field"><input type="checkbox" name="isDoctor"/> Это врач</label><Field name="specialty" label="Специальность" optional/></>;
-    case "service-categories":return <><Field name="code" label="Код" placeholder="therapy"/><Field name="name" label="Название" placeholder="Терапия"/></>;
-    case "services":return <><Select name="categoryId" label="Категория" items={categories} optional/><Field name="code" label="Код" placeholder="consultation"/><Field name="name" label="Название" placeholder="Первичная консультация"/><Field name="durationMinutes" label="Длительность, мин" type="number" defaultValue="30"/></>;
-    case "price-lists":return <><Field name="name" label="Название" placeholder="Основной прайс"/><Select name="branchId" label="Филиал" items={branches} optional/><div className="catalog-form-row"><Field name="currency" label="Валюта" defaultValue="KZT"/><Field name="validFrom" label="Действует с" type="date"/></div><Select name="serviceId" label="Первая услуга" items={services}/><Field name="priceMinor" label="Цена в minor units" type="number"/></>;
-    case "diagnoses":return <><Field name="code" label="Код диагноза" placeholder="K02.1"/><Field name="name" label="Наименование" placeholder="Кариес дентина"/></>;
+    case "service-categories":return <><Select name="organizationId" label="Организация" items={organizations}/><Field name="code" label="Код" placeholder="therapy"/><Field name="name" label="Название" placeholder="Терапия"/></>;
+    case "services":return <><Select name="organizationId" label="Организация" items={organizations}/><Select name="categoryId" label="Категория" items={categories} optional/><Field name="code" label="Код" placeholder="consultation"/><Field name="name" label="Название" placeholder="Первичная консультация"/><Field name="durationMinutes" label="Длительность, мин" type="number" defaultValue="30"/></>;
+    case "price-lists":return <><Select name="organizationId" label="Организация" items={organizations}/><Field name="name" label="Название" placeholder="Основной прайс"/><Select name="branchId" label="Филиал" items={branches} optional/><div className="catalog-form-row"><Field name="currency" label="Валюта" defaultValue="KZT"/><Field name="validFrom" label="Действует с" type="date"/></div><Select name="serviceId" label="Первая услуга" items={services}/><Field name="priceMinor" label="Цена в minor units" type="number"/></>;
+    case "diagnoses":return <><Select name="organizationId" label="Организация" items={organizations}/><Field name="code" label="Код диагноза" placeholder="K02.1"/><Field name="name" label="Наименование" placeholder="Кариес дентина"/></>;
     case "cashboxes":return <><Select name="branchId" label="Филиал" items={branches}/><Field name="code" label="Код" placeholder="main-cash"/><Field name="name" label="Название" placeholder="Основная касса"/><Field name="currency" label="Валюта" defaultValue="KZT"/></>;
-    case "expense-categories":return <><Field name="code" label="Код" placeholder="utilities"/><Field name="name" label="Название" placeholder="Коммунальные услуги"/><Field name="currency" label="Валюта" defaultValue="KZT"/></>;
+    case "expense-categories":return <><Select name="organizationId" label="Организация" items={organizations}/><Field name="code" label="Код" placeholder="utilities"/><Field name="name" label="Название" placeholder="Коммунальные услуги"/><Field name="currency" label="Валюта" defaultValue="KZT"/></>;
   }
 }
 function Field({name,label,type="text",placeholder,defaultValue,optional=false}:{name:string;label:string;type?:string;placeholder?:string;defaultValue?:string;optional?:boolean}){
@@ -116,12 +116,12 @@ function payload(resource:ResourceKey,form:FormData):Record<string,unknown>{
     case "chairs":return{branchId:value("branchId"),roomId:optional("roomId"),code:value("code"),name:value("name")};
     case "employees":return{branchIds:[value("branchId")],lastName:value("lastName"),firstName:value("firstName"),email:optional("email"),
       ...(form.get("isDoctor")?{doctor:{specialty:optional("specialty")}}:{})};
-    case "service-categories":return{code:value("code"),name:value("name")};
-    case "services":return{categoryId:optional("categoryId"),code:value("code"),name:value("name"),durationMinutes:Number(value("durationMinutes"))};
-    case "price-lists":return{name:value("name"),branchId:optional("branchId"),currency:value("currency"),validFrom:value("validFrom"),items:[{serviceId:value("serviceId"),priceMinor:Number(value("priceMinor"))}]};
-    case "diagnoses":return{code:value("code"),name:value("name")};
+    case "service-categories":return{organizationId:value("organizationId"),code:value("code"),name:value("name")};
+    case "services":return{organizationId:value("organizationId"),categoryId:optional("categoryId"),code:value("code"),name:value("name"),durationMinutes:Number(value("durationMinutes"))};
+    case "price-lists":return{organizationId:value("organizationId"),name:value("name"),branchId:optional("branchId"),currency:value("currency"),validFrom:value("validFrom"),items:[{serviceId:value("serviceId"),priceMinor:Number(value("priceMinor"))}]};
+    case "diagnoses":return{organizationId:value("organizationId"),code:value("code"),name:value("name")};
     case "cashboxes":return{branchId:value("branchId"),code:value("code"),name:value("name"),currency:value("currency")};
-    case "expense-categories":return{code:value("code"),name:value("name"),currency:value("currency")};
+    case "expense-categories":return{organizationId:value("organizationId"),code:value("code"),name:value("name"),currency:value("currency")};
   }
 }
 function displayName(item:Item){return String(item.name ?? `${item.lastName ?? ""} ${item.firstName ?? ""}`.trim() ?? item.code ?? "Без названия");}

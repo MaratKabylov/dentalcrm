@@ -159,19 +159,22 @@ export const doctors = pgTable("doctors", {
 
 export const serviceCategories = pgTable("service_categories", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   code: varchar("code", { length: 32 }).notNull(), name: varchar("name", { length: 160 }).notNull(),
   ...timestamps, archivedAt: timestamp("archived_at", { withTimezone: true })
-}, (table) => [unique("service_categories_tenant_code_unique").on(table.tenantId, table.code)]);
+}, (table) => [unique("service_categories_tenant_org_code_unique").on(table.tenantId, table.organizationId, table.code)]);
 
 export const services = pgTable("services", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   categoryId: uuid("category_id").references(() => serviceCategories.id), code: varchar("code", { length: 32 }).notNull(),
   name: varchar("name", { length: 180 }).notNull(), durationMinutes: integer("duration_minutes").notNull(),
   active: boolean("active").notNull().default(true), ...timestamps
-}, (table) => [unique("services_tenant_code_unique").on(table.tenantId, table.code)]);
+}, (table) => [unique("services_tenant_org_code_unique").on(table.tenantId, table.organizationId, table.code)]);
 
 export const priceLists = pgTable("price_lists", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   branchId: uuid("branch_id").references(() => branches.id), name: varchar("name", { length: 160 }).notNull(),
   currency: varchar("currency", { length: 3 }).notNull().default("KZT"), validFrom: date("valid_from").notNull(),
   validTo: date("valid_to"), active: boolean("active").notNull().default(true), ...timestamps
@@ -179,6 +182,7 @@ export const priceLists = pgTable("price_lists", {
 
 export const priceListItems = pgTable("price_list_items", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   priceListId: uuid("price_list_id").notNull().references(() => priceLists.id), serviceId: uuid("service_id").notNull().references(() => services.id),
   priceMinor: bigint("price_minor", { mode: "number" }).notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [unique("price_list_items_tenant_list_service_unique").on(table.tenantId, table.priceListId, table.serviceId)]);

@@ -5,10 +5,11 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
+import { assertOrganizationAccess } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 
-export interface PlanRow { id: string; patientId: string; title: string; status: string; currency: string; currentVersion: number; createdAt: Date }
-const planSelect = `id,patient_id AS "patientId",title,status,currency,current_version AS "currentVersion",created_at AS "createdAt"`;
+export interface PlanRow { id: string; organizationId:string; patientId: string; title: string; status: string; currency: string; currentVersion: number; createdAt: Date }
+const planSelect = `id,organization_id AS "organizationId",patient_id AS "patientId",title,status,currency,current_version AS "currentVersion",created_at AS "createdAt"`;
 
 @Injectable()
 export class TreatmentPlansService {
@@ -16,19 +17,20 @@ export class TreatmentPlansService {
 
   create(auth: AuthContext, input: CreateTreatmentPlanInput) {
     return this.database.withTenant(auth, async (client) => {
+      await assertOrganizationAccess(client,auth,input.organizationId);
       const patient = await client.query(`SELECT 1 FROM patients WHERE id=$1 AND archived_at IS NULL`, [input.patientId]);
       if (!patient.rows[0]) throw new ApiException(HttpStatus.NOT_FOUND, "PATIENT_NOT_FOUND", "Patient not found");
       const plan = (await client.query<PlanRow>(`INSERT INTO treatment_plans
-        (tenant_id,patient_id,title,currency,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$5) RETURNING ${planSelect}`,
-        [auth.tenantId, input.patientId, input.title, input.currency.toUpperCase(), auth.userId])).rows[0]!;
+        (tenant_id,organization_id,patient_id,title,currency,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING ${planSelect}`,
+        [auth.tenantId,input.organizationId,input.patientId,input.title,input.currency.toUpperCase(),auth.userId])).rows[0]!;
       const items = [];
       for (const [position, item] of input.items.entries()) {
         const row = (await client.query<Record<string, unknown>>(`INSERT INTO treatment_plan_items
-          (tenant_id,treatment_plan_id,service_id,doctor_id,tooth_number,quantity,list_price_minor,discount_minor,final_price_minor,position)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,service_id AS "serviceId",doctor_id AS "doctorId",
+          (tenant_id,organization_id,treatment_plan_id,service_id,doctor_id,tooth_number,quantity,list_price_minor,discount_minor,final_price_minor,position)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,service_id AS "serviceId",doctor_id AS "doctorId",
           tooth_number AS "toothNumber",quantity,list_price_minor AS "listPriceMinor",discount_minor AS "discountMinor",
-          final_price_minor AS "finalPriceMinor",status,position`, [auth.tenantId, plan.id, item.serviceId, item.doctorId ?? null,
-          item.toothNumber ?? null, item.quantity, item.listPriceMinor, item.discountMinor, item.finalPriceMinor, position])).rows[0]!;
+          final_price_minor AS "finalPriceMinor",status,position`, [auth.tenantId,input.organizationId,plan.id,item.serviceId,item.doctorId ?? null,
+          item.toothNumber ?? null,item.quantity,item.listPriceMinor,item.discountMinor,item.finalPriceMinor,position])).rows[0]!;
         items.push(row);
       }
       const snapshot = { ...plan, items };
@@ -39,12 +41,14 @@ export class TreatmentPlansService {
   }
 
   get(auth: AuthContext, id: string) {
-    return this.database.withTenant(auth, async (client) => this.aggregate(client, id));
+    return this.database.withTenant(auth, async (client) => {const plan=await this.aggregate(client,id);
+      await assertOrganizationAccess(client,auth,plan.organizationId);return plan;});
   }
 
   present(auth: AuthContext, id: string) {
     return this.database.withTenant(auth, async (client) => {
       const plan = await this.find(client, id, true);
+      await assertOrganizationAccess(client,auth,plan.organizationId);
       if (plan.status !== "draft") throw new ApiException(HttpStatus.CONFLICT, "TREATMENT_PLAN_NOT_DRAFT", "Only a draft plan can be presented");
       const snapshot = await this.aggregate(client, id);
       const presentedVersion = plan.currentVersion + 1;
@@ -63,6 +67,7 @@ export class TreatmentPlansService {
   accept(auth: AuthContext, id: string, input: AcceptTreatmentPlanInput) {
     return this.database.withTenant(auth, async (client) => {
       const before = await this.find(client, id, true);
+      await assertOrganizationAccess(client,auth,before.organizationId);
       if (!["presented","partially_accepted"].includes(before.status)) {
         throw new ApiException(HttpStatus.CONFLICT, "TREATMENT_PLAN_NOT_PRESENTED", "Treatment plan must be presented before acceptance");
       }

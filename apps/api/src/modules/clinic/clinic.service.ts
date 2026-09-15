@@ -8,6 +8,7 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
+import { assertBranchAccess, assertOrganizationAccess, branchScopeSql, organizationScopeSql, scopeValues } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 
 @Injectable()
@@ -18,38 +19,50 @@ export class ClinicService {
     private readonly outbox: OutboxService
   ) {}
 
-  listBranches(auth: AuthContext) { return this.query(auth, `SELECT b.id,b.organization_id AS "organizationId",b.code,b.name,b.timezone,
+  listBranches(auth: AuthContext) { const scope=this.branchScope(auth,"b"); return this.query(auth, `SELECT b.id,b.organization_id AS "organizationId",b.code,b.name,b.timezone,
     o.name AS "organizationName" FROM branches b JOIN organizations o ON o.id=b.organization_id
-    WHERE b.archived_at IS NULL ORDER BY b.name`); }
-  listRooms(auth: AuthContext) { return this.query(auth, `SELECT id, branch_id AS "branchId", code, name FROM rooms WHERE archived_at IS NULL ORDER BY name`); }
-  listChairs(auth: AuthContext) { return this.query(auth, `SELECT id, branch_id AS "branchId", room_id AS "roomId", code, name FROM chairs WHERE archived_at IS NULL ORDER BY name`); }
-  listServiceCategories(auth: AuthContext) { return this.query(auth, `SELECT id,code,name FROM service_categories WHERE archived_at IS NULL ORDER BY name`); }
-  listServices(auth: AuthContext) { return this.query(auth, `SELECT id, category_id AS "categoryId", code, name, duration_minutes AS "durationMinutes", active FROM services WHERE active ORDER BY name`); }
-  listDiagnoses(auth: AuthContext) { return this.query(auth, `SELECT id,code,name,active FROM diagnoses WHERE active ORDER BY code`); }
+    WHERE b.archived_at IS NULL AND ${scope.sql} ORDER BY b.name`,scope.values); }
+  listRooms(auth: AuthContext) { const scope=this.branchScope(auth,"b"); return this.query(auth, `SELECT r.id,r.branch_id AS "branchId",r.code,r.name
+    FROM rooms r JOIN branches b ON b.id=r.branch_id WHERE r.archived_at IS NULL AND ${scope.sql} ORDER BY r.name`,scope.values); }
+  listChairs(auth: AuthContext) { const scope=this.branchScope(auth,"b"); return this.query(auth, `SELECT c.id,c.branch_id AS "branchId",c.room_id AS "roomId",c.code,c.name
+    FROM chairs c JOIN branches b ON b.id=c.branch_id WHERE c.archived_at IS NULL AND ${scope.sql} ORDER BY c.name`,scope.values); }
+  listServiceCategories(auth: AuthContext) { const scope=this.organizationScope(auth,"c"); return this.query(auth, `SELECT c.id,c.organization_id AS "organizationId",
+    o.name AS "organizationName",c.code,c.name FROM service_categories c JOIN organizations o ON o.id=c.organization_id
+    WHERE c.archived_at IS NULL AND ${scope.sql} ORDER BY o.name,c.name`,scope.values); }
+  listServices(auth: AuthContext) { const scope=this.organizationScope(auth,"s"); return this.query(auth, `SELECT s.id,s.organization_id AS "organizationId",
+    o.name AS "organizationName",s.category_id AS "categoryId",s.code,s.name,s.duration_minutes AS "durationMinutes",s.active
+    FROM services s JOIN organizations o ON o.id=s.organization_id WHERE s.active AND ${scope.sql} ORDER BY o.name,s.name`,scope.values); }
+  listDiagnoses(auth: AuthContext) { const scope=this.organizationScope(auth,"d"); return this.query(auth, `SELECT d.id,d.organization_id AS "organizationId",
+    o.name AS "organizationName",d.code,d.name,d.active FROM diagnoses d JOIN organizations o ON o.id=d.organization_id
+    WHERE d.active AND ${scope.sql} ORDER BY o.name,d.code`,scope.values); }
   listEmployees(auth: AuthContext) {
-    return this.query(auth, `SELECT e.id, e.first_name AS "firstName", e.last_name AS "lastName", e.middle_name AS "middleName",
+    const scope=this.branchScope(auth,"b"); return this.query(auth, `SELECT e.id, e.first_name AS "firstName", e.last_name AS "lastName", e.middle_name AS "middleName",
       e.phone, e.email, e.status, d.id AS "doctorId", d.specialty, d.calendar_color AS "calendarColor"
       FROM employees e LEFT JOIN doctors d ON d.tenant_id=e.tenant_id AND d.employee_id=e.id WHERE e.status<>'archived'
-      ORDER BY e.last_name, e.first_name`);
+      AND EXISTS (SELECT 1 FROM employee_branches eb JOIN branches b ON b.id=eb.branch_id
+        WHERE eb.employee_id=e.id AND ${scope.sql}) ORDER BY e.last_name,e.first_name`,scope.values);
   }
   listPriceLists(auth: AuthContext) {
-    return this.query(auth, `SELECT p.id, p.branch_id AS "branchId", p.name, p.currency, p.valid_from AS "validFrom",
+    const scope=this.organizationScope(auth,"p"); return this.query(auth, `SELECT p.id,p.organization_id AS "organizationId",o.name AS "organizationName",
+      p.branch_id AS "branchId",p.name,p.currency,p.valid_from AS "validFrom",
       p.valid_to AS "validTo", p.active, COALESCE(json_agg(json_build_object('serviceId', i.service_id, 'priceMinor', i.price_minor))
       FILTER (WHERE i.id IS NOT NULL), '[]') AS items FROM price_lists p LEFT JOIN price_list_items i
-      ON i.tenant_id=p.tenant_id AND i.price_list_id=p.id WHERE p.active GROUP BY p.id ORDER BY p.valid_from DESC, p.name`);
+      ON i.tenant_id=p.tenant_id AND i.price_list_id=p.id JOIN organizations o ON o.id=p.organization_id
+      WHERE p.active AND ${scope.sql} GROUP BY p.id,o.name ORDER BY p.valid_from DESC,p.name`,scope.values);
   }
 
   createBranch(auth: AuthContext, input: CreateBranchInput) {
-    return this.create(auth, "branch", "BranchCreated", async (client) => this.insertOne(client,
+    return this.create(auth, "branch", "BranchCreated", async (client) => { await assertOrganizationAccess(client,auth,input.organizationId,false); return this.insertOne(client,
       `INSERT INTO branches (tenant_id,organization_id,code,name,timezone,created_by,updated_by)
        VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING id,organization_id AS "organizationId",code,name,timezone`,
-      [auth.tenantId,input.organizationId,input.code,input.name,input.timezone,auth.userId]));
+      [auth.tenantId,input.organizationId,input.code,input.name,input.timezone,auth.userId]); });
   }
 
   updateBranch(auth: AuthContext, id: string, input: UpdateBranchInput) {
     return this.database.withTenant(auth, async (client) => {
       const before = await this.rowForUpdate(client,"branches",id,"archived_at IS NULL");
       if (!before) throw notFound("BRANCH_NOT_FOUND","Branch not found");
+      await assertBranchAccess(client,auth,id);
       const after=(await client.query<Record<string,unknown>>(`UPDATE branches SET name=COALESCE($2,name),
         timezone=COALESCE($3,timezone),updated_at=now(),updated_by=$4,version=version+1 WHERE id=$1
         RETURNING id,organization_id AS "organizationId",code,name,timezone`,[id,input.name ?? null,input.timezone ?? null,auth.userId])).rows[0]!;
@@ -61,6 +74,7 @@ export class ClinicService {
     return this.database.withTenant(auth,async(client)=>{
       const before=await this.rowForUpdate(client,"branches",id,"archived_at IS NULL");
       if(!before) throw notFound("BRANCH_NOT_FOUND","Branch not found");
+      await assertBranchAccess(client,auth,id);
       const dependencies=await client.query(`SELECT 1 FROM rooms WHERE branch_id=$1 AND archived_at IS NULL
         UNION ALL SELECT 1 FROM chairs WHERE branch_id=$1 AND archived_at IS NULL
         UNION ALL SELECT 1 FROM cashboxes WHERE branch_id=$1 AND archived_at IS NULL LIMIT 1`,[id]);
@@ -71,27 +85,28 @@ export class ClinicService {
   }
 
   createRoom(auth: AuthContext, input: CreateRoomInput) {
-    return this.create(auth, "room", "RoomCreated", async (client) => this.insertOne(client,
+    return this.create(auth, "room", "RoomCreated", async (client) => { await assertBranchAccess(client,auth,input.branchId); return this.insertOne(client,
       `INSERT INTO rooms (tenant_id, branch_id, code, name, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$5)
        RETURNING id, branch_id AS "branchId", code, name`,
-      [auth.tenantId, input.branchId, input.code, input.name, auth.userId]));
+      [auth.tenantId, input.branchId, input.code, input.name, auth.userId]); });
   }
 
   createChair(auth: AuthContext, input: CreateChairInput) {
-    return this.create(auth, "chair", "ChairCreated", async (client) => this.insertOne(client,
+    return this.create(auth, "chair", "ChairCreated", async (client) => { await assertBranchAccess(client,auth,input.branchId); return this.insertOne(client,
       `INSERT INTO chairs (tenant_id, branch_id, room_id, code, name, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$6)
        RETURNING id, branch_id AS "branchId", room_id AS "roomId", code, name`,
-      [auth.tenantId, input.branchId, input.roomId ?? null, input.code, input.name, auth.userId]));
+      [auth.tenantId, input.branchId, input.roomId ?? null, input.code, input.name, auth.userId]); });
   }
 
   createServiceCategory(auth: AuthContext,input:CreateServiceCategoryInput){
-    return this.create(auth,"service_category","ServiceCategoryCreated",async(client)=>this.insertOne(client,
-      `INSERT INTO service_categories (tenant_id,code,name,created_by,updated_by) VALUES ($1,$2,$3,$4,$4)
-       RETURNING id,code,name`,[auth.tenantId,input.code,input.name,auth.userId]));
+    return this.create(auth,"service_category","ServiceCategoryCreated",async(client)=>{await assertOrganizationAccess(client,auth,input.organizationId);return this.insertOne(client,
+      `INSERT INTO service_categories (tenant_id,organization_id,code,name,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$5)
+       RETURNING id,organization_id AS "organizationId",code,name`,[auth.tenantId,input.organizationId,input.code,input.name,auth.userId]);});
   }
 
   createEmployee(auth: AuthContext, input: CreateEmployeeInput) {
     return this.create(auth, "employee", "EmployeeCreated", async (client) => {
+      for (const branchId of new Set(input.branchIds)) await assertBranchAccess(client,auth,branchId);
       const employee = await this.insertOne<{ id: string } & Record<string, unknown>>(client,
         `INSERT INTO employees (tenant_id, first_name, last_name, middle_name, phone, email, created_by, updated_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$7) RETURNING id, first_name AS "firstName", last_name AS "lastName",
@@ -112,17 +127,18 @@ export class ClinicService {
   }
 
   createService(auth: AuthContext, input: CreateServiceInput) {
-    return this.create(auth, "service", "ServiceCreated", async (client) => this.insertOne(client,
-      `INSERT INTO services (tenant_id, category_id, code, name, duration_minutes, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING id, category_id AS "categoryId", code, name,
+    return this.create(auth, "service", "ServiceCreated", async (client) => { await assertOrganizationAccess(client,auth,input.organizationId); return this.insertOne(client,
+      `INSERT INTO services (tenant_id,organization_id,category_id,code,name,duration_minutes,created_by,updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$7) RETURNING id,organization_id AS "organizationId",category_id AS "categoryId",code,name,
        duration_minutes AS "durationMinutes", active`,
-      [auth.tenantId, input.categoryId ?? null, input.code, input.name, input.durationMinutes, auth.userId]));
+      [auth.tenantId,input.organizationId,input.categoryId ?? null,input.code,input.name,input.durationMinutes,auth.userId]); });
   }
 
   updateService(auth:AuthContext,id:string,input:UpdateServiceCatalogInput){
     return this.database.withTenant(auth,async(client)=>{
       const before=await this.rowForUpdate(client,"services",id,"active");
       if(!before) throw notFound("SERVICE_NOT_FOUND","Service not found");
+      await this.assertResourceScope(client,auth,before);
       const hasCategory=Object.prototype.hasOwnProperty.call(input,"categoryId");
       const after=(await client.query<Record<string,unknown>>(`UPDATE services SET name=COALESCE($2,name),
         category_id=CASE WHEN $3 THEN $4 ELSE category_id END,duration_minutes=COALESCE($5,duration_minutes),
@@ -135,14 +151,17 @@ export class ClinicService {
 
   createPriceList(auth: AuthContext, input: CreatePriceListInput) {
     return this.create(auth, "price_list", "PriceListCreated", async (client) => {
+      await assertOrganizationAccess(client,auth,input.organizationId);
+      if(input.branchId) { const branchOrganizationId=await assertBranchAccess(client,auth,input.branchId);
+        if(branchOrganizationId!==input.organizationId) throw new ApiException(HttpStatus.CONFLICT,"PRICE_LIST_BRANCH_SCOPE_MISMATCH","Branch belongs to another organization"); }
       const priceList = await this.insertOne<{ id: string } & Record<string, unknown>>(client,
-        `INSERT INTO price_lists (tenant_id, branch_id, name, currency, valid_from, valid_to, created_by, updated_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$7) RETURNING id, branch_id AS "branchId", name, currency,
+        `INSERT INTO price_lists (tenant_id,organization_id,branch_id,name,currency,valid_from,valid_to,created_by,updated_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING id,organization_id AS "organizationId",branch_id AS "branchId",name,currency,
          valid_from AS "validFrom", valid_to AS "validTo", active`,
-        [auth.tenantId, input.branchId ?? null, input.name, input.currency.toUpperCase(), input.validFrom, input.validTo ?? null, auth.userId]);
+        [auth.tenantId,input.organizationId,input.branchId ?? null,input.name,input.currency.toUpperCase(),input.validFrom,input.validTo ?? null,auth.userId]);
       for (const item of input.items) {
-        await client.query(`INSERT INTO price_list_items (tenant_id, price_list_id, service_id, price_minor) VALUES ($1,$2,$3,$4)`,
-          [auth.tenantId, priceList.id, item.serviceId, item.priceMinor]);
+        await client.query(`INSERT INTO price_list_items (tenant_id,organization_id,price_list_id,service_id,price_minor) VALUES ($1,$2,$3,$4,$5)`,
+          [auth.tenantId,input.organizationId,priceList.id,item.serviceId,item.priceMinor]);
       }
       priceList.items = input.items;
       return priceList;
@@ -150,9 +169,10 @@ export class ClinicService {
   }
 
   createDiagnosis(auth:AuthContext,input:CreateDiagnosisCatalogInput){
-    return this.create(auth,"diagnosis","DiagnosisCreated",async(client)=>this.insertOne(client,
-      `INSERT INTO diagnoses (tenant_id,code,name) VALUES ($1,$2,$3) RETURNING id,code,name,active`,
-      [auth.tenantId,input.code,input.name]));
+    return this.create(auth,"diagnosis","DiagnosisCreated",async(client)=>{await assertOrganizationAccess(client,auth,input.organizationId);return this.insertOne(client,
+      `INSERT INTO diagnoses (tenant_id,organization_id,code,name) VALUES ($1,$2,$3,$4)
+       RETURNING id,organization_id AS "organizationId",code,name,active`,
+      [auth.tenantId,input.organizationId,input.code,input.name]);});
   }
 
   rename(auth:AuthContext,resource:MutableResource,id:string,name:string){
@@ -160,6 +180,7 @@ export class ClinicService {
     return this.database.withTenant(auth,async(client)=>{
       const before=await this.rowForUpdate(client,config.table,id,config.active);
       if(!before) throw notFound("RESOURCE_NOT_FOUND",`${config.label} not found`);
+      if(resource==="employee") await this.assertEmployeeAccess(client,auth,id); else await this.assertResourceScope(client,auth,before);
       const after=(await client.query<Record<string,unknown>>(`UPDATE ${config.table} SET name=$2,updated_at=now(),
         updated_by=$3,version=version+1 WHERE id=$1 RETURNING id,code,name`,[id,name,auth.userId])).rows[0]!;
       await this.recordMutation(client,auth,resource,"updated",id,before,after); return after;
@@ -171,14 +192,30 @@ export class ClinicService {
     return this.database.withTenant(auth,async(client)=>{
       const before=await this.rowForUpdate(client,config.table,id,config.active);
       if(!before) throw notFound("RESOURCE_NOT_FOUND",`${config.label} not found`);
+      if(resource==="employee") await this.assertEmployeeAccess(client,auth,id); else await this.assertResourceScope(client,auth,before);
       await client.query(`UPDATE ${config.table} SET ${config.archive},updated_at=now(),updated_by=$2,version=version+1 WHERE id=$1`,
         [id,auth.userId]);
       const after={id,archived:true}; await this.recordMutation(client,auth,resource,"archived",id,before,after); return after;
     });
   }
 
-  private query(auth: AuthContext, sql: string): Promise<Record<string, unknown>[]> {
-    return this.database.withTenant(auth, async (client) => (await client.query(sql)).rows);
+  private query(auth: AuthContext, sql: string, values:unknown[]=[]): Promise<Record<string, unknown>[]> {
+    return this.database.withTenant(auth, async (client) => (await client.query(sql,values)).rows);
+  }
+
+  private organizationScope(auth:AuthContext,alias:string){return auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:
+    {sql:organizationScopeSql(alias),values:scopeValues(auth)};}
+  private branchScope(auth:AuthContext,alias:string){return auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:
+    {sql:branchScopeSql(alias),values:scopeValues(auth)};}
+  private async assertResourceScope(client:PoolClient,auth:AuthContext,row:Record<string,unknown>){
+    if(typeof row.organization_id==="string") await assertOrganizationAccess(client,auth,row.organization_id);
+    else if(typeof row.branch_id==="string") await assertBranchAccess(client,auth,row.branch_id);
+  }
+  private async assertEmployeeAccess(client:PoolClient,auth:AuthContext,employeeId:string){
+    if(auth.tenantWide)return; const [organizationIds,branchIds]=scopeValues(auth);
+    const allowed=(await client.query(`SELECT 1 FROM employee_branches eb JOIN branches b ON b.id=eb.branch_id
+      WHERE eb.employee_id=$1 AND ${branchScopeSql("b",2,3)} LIMIT 1`,[employeeId,organizationIds,branchIds])).rows[0];
+    if(!allowed) throw new ApiException(HttpStatus.FORBIDDEN,"EMPLOYEE_SCOPE_FORBIDDEN","Employee is outside the membership access scope");
   }
 
   private async rowForUpdate(client:PoolClient,table:string,id:string,active:string){

@@ -1,8 +1,9 @@
 import type { CreateOrganizationInput, OrganizationDto } from "@dental/contracts";
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { ForbiddenException, HttpStatus, Injectable } from "@nestjs/common";
 import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
+import { assertOrganizationAccess } from "../identity/access-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 import { OrganizationsRepository } from "./organizations.repository.js";
@@ -17,10 +18,11 @@ export class OrganizationsService {
   ) {}
 
   list(auth: AuthContext): Promise<OrganizationDto[]> {
-    return this.repository.list(auth.tenantId);
+    return this.repository.list(auth);
   }
 
   async create(auth: AuthContext, input: CreateOrganizationInput): Promise<OrganizationDto> {
+    if(!auth.tenantWide) throw new ForbiddenException("Tenant-wide access is required to create an organization");
     try {
       return await this.database.withTenant(auth, async (client) => {
         const organization = await this.repository.insert(client, {
@@ -61,6 +63,7 @@ export class OrganizationsService {
 
   update(auth: AuthContext, id: string, input: { name: string }): Promise<OrganizationDto> {
     return this.database.withTenant(auth, async (client) => {
+      await assertOrganizationAccess(client,auth,id,false);
       const before = await this.repository.findForUpdate(client, id);
       if (!before) throw new ApiException(HttpStatus.NOT_FOUND, "ORGANIZATION_NOT_FOUND", "Organization not found");
       const row = (await client.query<{ id: string; name: string; code: string; created_at: Date }>(`UPDATE organizations
@@ -77,6 +80,7 @@ export class OrganizationsService {
 
   archive(auth: AuthContext, id: string) {
     return this.database.withTenant(auth, async (client) => {
+      await assertOrganizationAccess(client,auth,id,false);
       const before = await this.repository.findForUpdate(client, id);
       if (!before) throw new ApiException(HttpStatus.NOT_FOUND, "ORGANIZATION_NOT_FOUND", "Organization not found");
       const activeBranches = await client.query("SELECT 1 FROM branches WHERE organization_id=$1 AND archived_at IS NULL LIMIT 1", [id]);

@@ -6,7 +6,8 @@ Phase 1 is the first operational clinic slice described in the master architectu
 
 - Every domain row carries `tenant_id`; PostgreSQL RLS is enabled and forced for the application role.
 - `Employee` is the person employed by the clinic. `Doctor` is a role-specific profile linked one-to-one to an employee.
-- A service has a stable tenant-unique code. Prices are integer minor units stored in dated price lists, never on the service row.
+- A service has a stable organization-unique code. Prices are integer minor units stored in organization-owned, dated price lists, never on the service row.
+- The hierarchy is `Tenant -> Organization -> Branch`; membership scopes can grant tenant-, organization-, or branch-level access.
 - Patient phone numbers are normalized for duplicate detection. A matching active phone returns `POSSIBLE_PATIENT_DUPLICATE` instead of silently creating a duplicate.
 - Appointment time intervals are half-open (`[starts_at, ends_at)`). PostgreSQL exclusion constraints prevent overlaps for a doctor, chair, or room under concurrent writes.
 - Cancelled, no-show, and replaced appointments no longer reserve resources.
@@ -67,7 +68,7 @@ npm run check
 corepack pnpm --filter @dental/api test:integration
 ```
 
-The seed command prints the local `tenantId`. Put it in `apps/web/.env.local` as `NEXT_PUBLIC_DEMO_TENANT_ID` before starting the web application. The Clinic Core screen then provides a live weekly calendar, quick patient registration, appointment creation, and normal visit-state actions. `/settings` provides the tenant's unified reference-data workspace for organizations, branches, resources, employees, the service catalog, diagnoses, cashboxes, and expense categories.
+The seed command prints the local `tenantId`. Put it in `apps/web/.env.local` as `NEXT_PUBLIC_DEMO_TENANT_ID` before starting the web application. The Clinic Core screen then provides a live weekly calendar, quick patient registration, appointment creation, and normal visit-state actions. `/settings` is an early reference-data prototype; the final shared administration module is intentionally scheduled after the domain phases.
 
 ## Acceptance mapping
 

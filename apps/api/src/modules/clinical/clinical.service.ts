@@ -8,6 +8,7 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
+import { assertBranchAccess } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 
 export interface EncounterRow { id: string; appointmentId: string | null; patientId: string; doctorId: string; branchId: string; status: string; startedAt: Date; completedAt: Date | null }
@@ -24,6 +25,7 @@ export class ClinicalService {
 
   createEncounter(auth: AuthContext, input: CreateEncounterInput) {
     return this.database.withTenant(auth, async (client) => {
+      await assertBranchAccess(client,auth,input.branchId);
       if (input.appointmentId) {
         const appointment = (await client.query<{ patientId: string; doctorId: string; branchId: string }>(
           `SELECT patient_id AS "patientId", doctor_id AS "doctorId", branch_id AS "branchId" FROM appointments WHERE id=$1`,
@@ -45,6 +47,7 @@ export class ClinicalService {
   getEncounter(auth: AuthContext, id: string) {
     return this.database.withTenant(auth, async (client) => {
       const encounter = await this.findEncounter(client, id);
+      await assertBranchAccess(client,auth,encounter.branchId);
       const [notes, diagnoses, procedures] = await Promise.all([
         client.query(`SELECT n.id,n.encounter_id AS "encounterId",n.patient_id AS "patientId",n.doctor_id AS "doctorId",
           COALESCE(v.title,n.title) AS title,COALESCE(v.content,n.content) AS content,n.status,
@@ -64,6 +67,7 @@ export class ClinicalService {
   completeEncounter(auth: AuthContext, id: string) {
     return this.database.withTenant(auth, async (client) => {
       const before = await this.findEncounter(client, id, true);
+      await assertBranchAccess(client,auth,before.branchId);
       if (before.status !== "in_progress") throw new ApiException(HttpStatus.CONFLICT, "ENCOUNTER_NOT_ACTIVE", "Encounter is not in progress");
       const signed = await client.query(`SELECT 1 FROM clinical_notes WHERE encounter_id=$1 AND status IN ('signed','amended') LIMIT 1`, [id]);
       if (!signed.rows[0]) throw new ApiException(HttpStatus.CONFLICT, "SIGNED_NOTE_REQUIRED", "A signed clinical note is required to complete the encounter");
@@ -77,6 +81,7 @@ export class ClinicalService {
   createNote(auth: AuthContext, input: CreateClinicalNoteInput) {
     return this.database.withTenant(auth, async (client) => {
       const encounter = await this.findEncounter(client, input.encounterId, true);
+      await assertBranchAccess(client,auth,encounter.branchId);
       if (encounter.status !== "in_progress") throw new ApiException(HttpStatus.CONFLICT, "ENCOUNTER_NOT_ACTIVE", "Encounter is not in progress");
       const note = (await client.query<NoteRow>(`INSERT INTO clinical_notes
         (tenant_id, encounter_id, patient_id, doctor_id, title, content, created_by, updated_by)
@@ -91,6 +96,7 @@ export class ClinicalService {
   updateNote(auth: AuthContext, id: string, input: UpdateClinicalNoteInput) {
     return this.database.withTenant(auth, async (client) => {
       const before = await this.findNote(client, id, true);
+      await this.assertNoteAccess(client,auth,before);
       if (before.status !== "draft") throw new ApiException(HttpStatus.CONFLICT, "SIGNED_NOTE_IMMUTABLE", "Signed clinical notes must be amended");
       const after = (await client.query<NoteRow>(`UPDATE clinical_notes SET title=COALESCE($2,title), content=COALESCE($3,content),
         current_version=current_version+1, updated_at=now(), updated_by=$4, version=version+1 WHERE id=$1 RETURNING ${noteSelect}`,
@@ -104,6 +110,7 @@ export class ClinicalService {
   signNote(auth: AuthContext, id: string) {
     return this.database.withTenant(auth, async (client) => {
       const before = await this.findNote(client, id, true);
+      await this.assertNoteAccess(client,auth,before);
       if (before.status !== "draft") throw new ApiException(HttpStatus.CONFLICT, "CLINICAL_NOTE_NOT_DRAFT", "Only a draft note can be signed");
       const signedVersion = before.currentVersion + 1;
       await client.query(`INSERT INTO clinical_note_versions
@@ -120,6 +127,7 @@ export class ClinicalService {
   amendNote(auth: AuthContext, id: string, input: AmendClinicalNoteInput) {
     return this.database.withTenant(auth, async (client) => {
       const note = await this.findNote(client, id, true);
+      await this.assertNoteAccess(client,auth,note);
       if (!['signed','amended'].includes(note.status)) throw new ApiException(HttpStatus.CONFLICT, "SIGNED_NOTE_REQUIRED", "Only a signed note can be amended");
       const next = note.currentVersion + 1;
       await client.query(`INSERT INTO clinical_note_versions
@@ -135,7 +143,8 @@ export class ClinicalService {
 
   noteVersions(auth: AuthContext, id: string) {
     return this.database.withTenant(auth, async (client) => {
-      await this.findNote(client, id);
+      const note=await this.findNote(client,id);
+      await this.assertNoteAccess(client,auth,note);
       return (await client.query(`SELECT id, version_number AS "versionNumber", title, content,
         amendment_reason AS "amendmentReason", created_at AS "createdAt", signed_at AS "signedAt"
         FROM clinical_note_versions WHERE clinical_note_id=$1 ORDER BY version_number DESC`, [id])).rows;
@@ -144,9 +153,12 @@ export class ClinicalService {
 
   addDiagnosis(auth: AuthContext, encounterId: string, input: CreateDiagnosisInput) {
     return this.database.withTenant(auth, async (client) => {
-      await this.assertActiveEncounter(client, encounterId);
-      const diagnosis = (await client.query<{ id: string }>(`INSERT INTO diagnoses (tenant_id,code,name) VALUES ($1,$2,$3)
-        ON CONFLICT (tenant_id,code) DO UPDATE SET name=EXCLUDED.name RETURNING id`, [auth.tenantId, input.code, input.name])).rows[0]!;
+      const encounter=await this.assertActiveEncounter(client, encounterId);
+      await assertBranchAccess(client,auth,encounter.branchId);
+      const organization=(await client.query<{id:string}>(`SELECT organization_id AS id FROM branches WHERE id=$1`,[encounter.branchId])).rows[0]!;
+      const diagnosis = (await client.query<{ id: string }>(`INSERT INTO diagnoses (tenant_id,organization_id,code,name) VALUES ($1,$2,$3,$4)
+        ON CONFLICT (tenant_id,organization_id,code) DO UPDATE SET name=EXCLUDED.name RETURNING id`,
+        [auth.tenantId,organization.id,input.code,input.name])).rows[0]!;
       const row = (await client.query<{ id: string } & Record<string, unknown>>(`INSERT INTO encounter_diagnoses
         (tenant_id,encounter_id,diagnosis_id,kind,tooth_number,recorded_by) VALUES ($1,$2,$3,$4,$5,$6)
         RETURNING id, encounter_id AS "encounterId", diagnosis_id AS "diagnosisId", kind, tooth_number AS "toothNumber", recorded_at AS "recordedAt"`,
@@ -159,6 +171,10 @@ export class ClinicalService {
   addProcedure(auth: AuthContext, encounterId: string, input: CreateProcedureInput) {
     return this.database.withTenant(auth, async (client) => {
       const encounter = await this.assertActiveEncounter(client, encounterId);
+      await assertBranchAccess(client,auth,encounter.branchId);
+      const validService=(await client.query(`SELECT 1 FROM services s JOIN branches b ON b.id=$2
+        WHERE s.id=$1 AND s.organization_id=b.organization_id AND s.active`,[input.serviceId,encounter.branchId])).rows[0];
+      if(!validService) throw new ApiException(HttpStatus.CONFLICT,"SERVICE_ORGANIZATION_MISMATCH","Service does not belong to the encounter organization");
       const row = (await client.query<{ id: string } & Record<string, unknown>>(`INSERT INTO procedures
         (tenant_id,encounter_id,patient_id,doctor_id,service_id,tooth_number,quantity,notes,created_by,updated_by)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING id, encounter_id AS "encounterId", service_id AS "serviceId",
@@ -179,8 +195,10 @@ export class ClinicalService {
 
   completeProcedure(auth: AuthContext, id: string, completedAt?: string) {
     return this.database.withTenant(auth, async (client) => {
-      const before = (await client.query<{ id: string; status: string }>(`SELECT id,status FROM procedures WHERE id=$1 FOR UPDATE`, [id])).rows[0];
+      const before = (await client.query<{ id:string;status:string;branchId:string }>(`SELECT p.id,p.status,e.branch_id AS "branchId"
+        FROM procedures p JOIN encounters e ON e.id=p.encounter_id WHERE p.id=$1 FOR UPDATE OF p`, [id])).rows[0];
       if (!before) throw new ApiException(HttpStatus.NOT_FOUND, "PROCEDURE_NOT_FOUND", "Procedure not found");
+      await assertBranchAccess(client,auth,before.branchId);
       if (!['planned','in_progress'].includes(before.status)) throw new ApiException(HttpStatus.CONFLICT, "PROCEDURE_NOT_ACTIVE", "Procedure cannot be completed");
       const after = (await client.query<Record<string, unknown>>(`UPDATE procedures SET status='completed', completed_at=COALESCE($2::timestamptz,now()),
         updated_at=now(), updated_by=$3, version=version+1 WHERE id=$1 RETURNING id,status,completed_at AS "completedAt"`,
@@ -257,6 +275,11 @@ export class ClinicalService {
     const row = (await client.query<NoteRow>(`SELECT ${noteSelect} FROM clinical_notes WHERE id=$1${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
     if (!row) throw new ApiException(HttpStatus.NOT_FOUND, "CLINICAL_NOTE_NOT_FOUND", "Clinical note not found");
     return row;
+  }
+
+  private async assertNoteAccess(client:PoolClient,auth:AuthContext,note:NoteRow){
+    const encounter=await this.findEncounter(client,note.encounterId);
+    await assertBranchAccess(client,auth,encounter.branchId);
   }
 
   private appendNoteVersion(client: PoolClient, auth: AuthContext, note: NoteRow, reason: string | null) {

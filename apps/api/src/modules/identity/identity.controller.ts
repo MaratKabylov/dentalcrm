@@ -13,7 +13,12 @@ export class IdentityController {
       tenantId: auth.tenantId,
       userId: auth.userId,
       membershipId: auth.membershipId,
-      permissions: [...auth.permissions].sort()
+      permissions: [...auth.permissions].sort(),
+      access: {
+        tenantWide: auth.tenantWide,
+        organizationIds: [...auth.organizationIds].sort(),
+        branchIds: [...auth.branchIds].sort()
+      }
     };
   }
 }

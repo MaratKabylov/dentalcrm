@@ -7,6 +7,7 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
+import { assertBranchAccess, branchScopeSql, scopeValues } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 import { canTransition } from "./appointment-state.js";
 
@@ -28,6 +29,7 @@ export class SchedulingService {
       throw new ApiException(HttpStatus.BAD_REQUEST, "CALENDAR_RANGE_TOO_LARGE", "Calendar range cannot exceed 62 days");
     }
     return this.database.withTenant(auth, async (client) => {
+      const scoped=auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:{sql:branchScopeSql("b",3,4),values:scopeValues(auth)};
       const result = await client.query<AppointmentRow & Record<string, unknown>>(`SELECT ${select},
         concat_ws(' ', p.last_name, p.first_name) AS "patientName",
         concat_ws(' ', e.last_name, e.first_name) AS "doctorName",
@@ -35,25 +37,29 @@ export class SchedulingService {
         FROM appointments a JOIN patients p ON p.tenant_id=a.tenant_id AND p.id=a.patient_id
         JOIN doctors d ON d.tenant_id=a.tenant_id AND d.id=a.doctor_id
         JOIN employees e ON e.tenant_id=d.tenant_id AND e.id=d.employee_id
+        JOIN branches b ON b.id=a.branch_id
         LEFT JOIN chairs c ON c.tenant_id=a.tenant_id AND c.id=a.chair_id
         LEFT JOIN rooms r ON r.tenant_id=a.tenant_id AND r.id=a.room_id
-        WHERE a.starts_at < $2 AND a.ends_at > $1 ORDER BY a.starts_at`, [from, to]);
+        WHERE a.starts_at < $2 AND a.ends_at > $1 AND ${scoped.sql} ORDER BY a.starts_at`, [from,to,...scoped.values]);
       return result.rows.map((row) => ({ ...row, startsAt: row.startsAt.toISOString(), endsAt: row.endsAt.toISOString() }));
     });
   }
 
   listShifts(auth: AuthContext, from: string, to: string) {
+    const scoped=auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:{sql:branchScopeSql("b",3,4),values:scopeValues(auth)};
     return this.database.withTenant(auth, async (client) => (await client.query(
       `SELECT s.id, s.branch_id AS "branchId", s.doctor_id AS "doctorId", s.starts_at AS "startsAt",
        s.ends_at AS "endsAt", concat_ws(' ', e.last_name, e.first_name) AS "doctorName"
        FROM schedule_shifts s JOIN doctors d ON d.tenant_id=s.tenant_id AND d.id=s.doctor_id
        JOIN employees e ON e.tenant_id=d.tenant_id AND e.id=d.employee_id
-       WHERE s.starts_at < $2 AND s.ends_at > $1 ORDER BY s.starts_at`, [from, to])).rows);
+       JOIN branches b ON b.id=s.branch_id WHERE s.starts_at < $2 AND s.ends_at > $1 AND ${scoped.sql}
+       ORDER BY s.starts_at`, [from,to,...scoped.values])).rows);
   }
 
   async createShift(auth: AuthContext, input: CreateScheduleShiftInput) {
     try {
       return await this.database.withTenant(auth, async (client) => {
+        await assertBranchAccess(client,auth,input.branchId);
         const shift = (await client.query<{ id: string } & Record<string, unknown>>(
           `INSERT INTO schedule_shifts (tenant_id, branch_id, doctor_id, starts_at, ends_at)
            VALUES ($1,$2,$3,$4,$5) RETURNING id, branch_id AS "branchId", doctor_id AS "doctorId",
@@ -76,13 +82,19 @@ export class SchedulingService {
   async create(auth: AuthContext, input: CreateAppointmentInput): Promise<AppointmentDto> {
     try {
       return await this.database.withTenant(auth, async (client) => {
+        await assertBranchAccess(client,auth,input.branchId);
+        const uniqueServiceIds=[...new Set(input.serviceIds)];
+        if(uniqueServiceIds.length>0){const valid=(await client.query<{count:number}>(`SELECT count(*)::int AS count FROM services s
+          JOIN branches b ON b.id=$1 WHERE s.id=ANY($2::uuid[]) AND s.organization_id=b.organization_id AND s.active`,
+          [input.branchId,uniqueServiceIds])).rows[0]?.count ?? 0;
+          if(valid!==uniqueServiceIds.length) throw new ApiException(HttpStatus.CONFLICT,"SERVICE_ORGANIZATION_MISMATCH","One or more services belong to another organization");}
         const result = await client.query<AppointmentRow>(`INSERT INTO appointments (tenant_id, patient_id, doctor_id,
           branch_id, room_id, chair_id, starts_at, ends_at, source, reason, notes, created_by, updated_by)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING ${select.replaceAll("a.", "")}`,
           [auth.tenantId, input.patientId, input.doctorId, input.branchId, input.roomId ?? null, input.chairId ?? null,
             input.startsAt, input.endsAt, input.source, input.reason ?? null, input.notes ?? null, auth.userId]);
         const appointment = toDto(result.rows[0]!);
-        for (const serviceId of new Set(input.serviceIds)) {
+        for (const serviceId of uniqueServiceIds) {
           await client.query(`INSERT INTO appointment_services (tenant_id, appointment_id, service_id) VALUES ($1,$2,$3)`,
             [auth.tenantId, appointment.id, serviceId]);
         }
@@ -103,6 +115,7 @@ export class SchedulingService {
     return this.database.withTenant(auth, async (client) => {
       const row = (await client.query<AppointmentRow>(`SELECT ${select} FROM appointments a WHERE a.id=$1 FOR UPDATE`, [id])).rows[0];
       if (!row) throw new ApiException(HttpStatus.NOT_FOUND, "APPOINTMENT_NOT_FOUND", "Appointment not found");
+      await assertBranchAccess(client,auth,row.branchId);
       if (!canTransition(row.status, target)) {
         throw new ApiException(HttpStatus.CONFLICT, "INVALID_APPOINTMENT_TRANSITION",
           `Cannot transition appointment from ${row.status} to ${target}`, { from: row.status, to: target });
@@ -130,6 +143,7 @@ export class SchedulingService {
       return await this.database.withTenant(auth, async (client) => {
         const current = (await client.query<AppointmentRow>(`SELECT ${select} FROM appointments a WHERE a.id=$1 FOR UPDATE`, [id])).rows[0];
         if (!current) throw new ApiException(HttpStatus.NOT_FOUND, "APPOINTMENT_NOT_FOUND", "Appointment not found");
+        await assertBranchAccess(client,auth,current.branchId);
         if (!canTransition(current.status, "rescheduled")) {
           throw new ApiException(HttpStatus.CONFLICT, "INVALID_APPOINTMENT_TRANSITION",
             `Cannot reschedule appointment from ${current.status}`, { from: current.status, to: "rescheduled" });

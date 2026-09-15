@@ -4,5 +4,8 @@ export interface AuthContext {
   membershipId: string;
   subject: string;
   permissions: ReadonlySet<string>;
+  tenantWide: boolean;
+  organizationIds: ReadonlySet<string>;
+  branchIds: ReadonlySet<string>;
   requestId: string;
 }

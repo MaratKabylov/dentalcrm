@@ -76,6 +76,11 @@ try {
      ON CONFLICT DO NOTHING`,
     [tenantId, membership.rows[0]!.id, role.rows[0]!.id, userId]
   );
+  await client.query(
+    `INSERT INTO access_scopes (tenant_id,membership_id,scope_type,created_by)
+     VALUES ($1,$2,'tenant',$3) ON CONFLICT DO NOTHING`,
+    [tenantId,membership.rows[0]!.id,userId]
+  );
   const branchId = branch.rows[0]!.id;
   await client.query(
     `INSERT INTO rooms (tenant_id, branch_id, code, name, created_by, updated_by)
@@ -99,8 +104,9 @@ try {
   await client.query(`INSERT INTO doctors (tenant_id, employee_id, specialty) VALUES ($1,$2,'Терапевт') ON CONFLICT (tenant_id, employee_id) DO NOTHING`,
     [tenantId, employee.rows[0]!.id]);
   await client.query(
-    `INSERT INTO services (tenant_id, code, name, duration_minutes, created_by, updated_by)
-     VALUES ($1,'consultation','Первичная консультация',30,$2,$2) ON CONFLICT (tenant_id, code) DO NOTHING`, [tenantId, userId]);
+    `INSERT INTO services (tenant_id,organization_id,code,name,duration_minutes,created_by,updated_by)
+     VALUES ($1,$2,'consultation','Первичная консультация',30,$3,$3)
+     ON CONFLICT (tenant_id,organization_id,code) DO NOTHING`, [tenantId,organization.rows[0]!.id,userId]);
   await client.query("COMMIT");
   console.info(JSON.stringify({ tenantId, subject, headers: { "x-tenant-id": tenantId, "x-user-subject": subject } }, null, 2));
 } catch (error) {
