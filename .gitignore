@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+.local-bin/
+.turbo/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+!.env.template
+apps/api/drizzle/meta/
+minio-data/
+postgres-data/
+redis-data/

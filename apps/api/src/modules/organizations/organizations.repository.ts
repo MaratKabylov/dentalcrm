@@ -1,0 +1,49 @@
+import type { OrganizationDto } from "@dental/contracts";
+import { Injectable } from "@nestjs/common";
+import type { PoolClient } from "pg";
+import { DatabaseService } from "../../database/database.service.js";
+
+interface OrganizationRow {
+  id: string;
+  name: string;
+  code: string;
+  created_at: Date;
+}
+
+@Injectable()
+export class OrganizationsRepository {
+  constructor(private readonly database: DatabaseService) {}
+
+  async list(tenantId: string): Promise<OrganizationDto[]> {
+    return this.database.withTenant({ tenantId }, async (client) => {
+      const result = await client.query<OrganizationRow>(
+        `SELECT id, name, code, created_at
+         FROM organizations
+         WHERE archived_at IS NULL
+         ORDER BY name`
+      );
+      return result.rows.map(toDto);
+    });
+  }
+
+  async insert(client: PoolClient, values: {
+    tenantId: string;
+    userId: string;
+    name: string;
+    code: string;
+  }): Promise<OrganizationDto> {
+    const result = await client.query<OrganizationRow>(
+      `INSERT INTO organizations (tenant_id, name, code, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $4)
+       RETURNING id, name, code, created_at`,
+      [values.tenantId, values.name, values.code, values.userId]
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error("Organization insert returned no row");
+    return toDto(row);
+  }
+}
+
+function toDto(row: OrganizationRow): OrganizationDto {
+  return { id: row.id, name: row.name, code: row.code, createdAt: row.created_at.toISOString() };
+}
