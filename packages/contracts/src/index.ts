@@ -381,3 +381,41 @@ export type OpenCashSessionInput = z.infer<typeof openCashSessionSchema>;
 export type CloseCashSessionInput = z.infer<typeof closeCashSessionSchema>;
 export type CreateExpenseCategoryInput = z.infer<typeof createExpenseCategorySchema>;
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
+
+export const createBranchSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160),
+  timezone: z.string().trim().min(1).max(64).default("Asia/Almaty")
+});
+
+export const updateOrganizationSchema = z.object({ name: z.string().trim().min(1).max(160) });
+export const updateBranchSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  timezone: z.string().trim().min(1).max(64).optional()
+}).refine((value) => Object.keys(value).length > 0);
+
+export const createServiceCategorySchema = z.object({
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160)
+});
+
+export const updateServiceCategorySchema = z.object({ name: z.string().trim().min(1).max(160) });
+export const createDiagnosisCatalogSchema = z.object({
+  code: z.string().trim().min(1).max(32),
+  name: z.string().trim().min(1).max(500)
+});
+export const updateDiagnosisCatalogSchema = z.object({ name: z.string().trim().min(1).max(500) });
+
+export const renameResourceSchema = z.object({ name: z.string().trim().min(1).max(180) });
+export const updateServiceCatalogSchema = z.object({
+  name: z.string().trim().min(1).max(180).optional(),
+  categoryId: uuidSchema.nullable().optional(),
+  durationMinutes: z.number().int().min(5).max(720).optional()
+}).refine((value) => Object.keys(value).length > 0);
+
+export type CreateBranchInput = z.infer<typeof createBranchSchema>;
+export type UpdateBranchInput = z.infer<typeof updateBranchSchema>;
+export type CreateServiceCategoryInput = z.infer<typeof createServiceCategorySchema>;
+export type CreateDiagnosisCatalogInput = z.infer<typeof createDiagnosisCatalogSchema>;
+export type UpdateServiceCatalogInput = z.infer<typeof updateServiceCatalogSchema>;

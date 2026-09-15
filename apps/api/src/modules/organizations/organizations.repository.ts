@@ -42,6 +42,12 @@ export class OrganizationsRepository {
     if (!row) throw new Error("Organization insert returned no row");
     return toDto(row);
   }
+
+  async findForUpdate(client: PoolClient, id: string): Promise<OrganizationDto | undefined> {
+    const row = (await client.query<OrganizationRow>(`SELECT id,name,code,created_at FROM organizations
+      WHERE id=$1 AND archived_at IS NULL FOR UPDATE`, [id])).rows[0];
+    return row ? toDto(row) : undefined;
+  }
 }
 
 function toDto(row: OrganizationRow): OrganizationDto {

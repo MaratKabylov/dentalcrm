@@ -1,9 +1,9 @@
 import {
   closeCashSessionSchema, createCashboxSchema, createChargeSchema, createExpenseCategorySchema,
   createExpenseSchema, createPaymentSchema, createRefundSchema, idempotencyKeySchema,
-  openCashSessionSchema, uuidSchema
+  openCashSessionSchema, renameResourceSchema, uuidSchema
 } from "@dental/contracts";
-import { Body, Controller, Get, Headers, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { parseSchema } from "../../common/http/parse-schema.js";
 import type { AuthContext } from "../identity/auth-context.js";
@@ -57,6 +57,19 @@ export class FinanceController {
     return this.finance.createCashbox(auth, parseSchema(createCashboxSchema, body));
   }
 
+  @Get("cashboxes") @RequirePermissions("finance.read")
+  cashboxes(@CurrentAuth() auth: AuthContext) { return this.finance.listCashboxes(auth); }
+
+  @Patch("cashboxes/:id") @RequirePermissions("finance.cashbox.manage")
+  updateCashbox(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Body() body: unknown) {
+    return this.finance.updateCashbox(auth, parseSchema(uuidSchema,id), parseSchema(renameResourceSchema,body).name);
+  }
+
+  @Post("cashboxes/:id/archive") @RequirePermissions("finance.cashbox.manage")
+  archiveCashbox(@CurrentAuth() auth: AuthContext, @Param("id") id: string) {
+    return this.finance.archiveCashbox(auth, parseSchema(uuidSchema,id));
+  }
+
   @Post("cashboxes/:id/sessions/open") @RequirePermissions("finance.cashbox.manage")
   openSession(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Body() body: unknown) {
     return this.finance.openCashSession(auth, parseSchema(uuidSchema, id), parseSchema(openCashSessionSchema, body));
@@ -70,6 +83,19 @@ export class FinanceController {
   @Post("expense-categories") @RequirePermissions("finance.cashbox.manage")
   createExpenseCategory(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {
     return this.finance.createExpenseCategory(auth, parseSchema(createExpenseCategorySchema, body));
+  }
+
+  @Get("expense-categories") @RequirePermissions("finance.read")
+  expenseCategories(@CurrentAuth() auth: AuthContext) { return this.finance.listExpenseCategories(auth); }
+
+  @Patch("expense-categories/:id") @RequirePermissions("finance.cashbox.manage")
+  updateExpenseCategory(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Body() body: unknown) {
+    return this.finance.updateExpenseCategory(auth, parseSchema(uuidSchema,id), parseSchema(renameResourceSchema,body).name);
+  }
+
+  @Post("expense-categories/:id/archive") @RequirePermissions("finance.cashbox.manage")
+  archiveExpenseCategory(@CurrentAuth() auth: AuthContext, @Param("id") id: string) {
+    return this.finance.archiveExpenseCategory(auth, parseSchema(uuidSchema,id));
   }
 
   @Post("expenses") @RequirePermissions("finance.expense.create")

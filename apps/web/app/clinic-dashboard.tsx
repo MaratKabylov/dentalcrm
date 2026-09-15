@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 
 interface Props { apiUrl: string; tenantId: string; subject: string; }
 interface Patient { id: string; firstName: string; lastName: string; phone: string; }
@@ -55,7 +56,7 @@ export function ClinicDashboard({ apiUrl, tenantId, subject }: Props) {
   }
   if (!tenantId) return <Setup apiUrl={apiUrl} />;
   return <main className="app-shell">
-    <header className="app-header"><div><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><p>Clinic Core · рабочая неделя</p></div><div className="header-actions"><span className="live-dot" /> API подключён <span className="avatar">LO</span></div></header>
+    <header className="app-header"><div><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><p>Clinic Core · рабочая неделя</p></div><nav className="top-nav"><Link className="active" href="/">Расписание</Link><Link href="/settings">Настройки</Link></nav><div className="header-actions"><span className="live-dot" /> API подключён <span className="avatar">LO</span></div></header>
     {notice && <div className="notice" role="status">{notice}</div>}
     <section className="metrics"><Metric value={appointments.length} label="Записей на неделе"/><Metric value={appointments.filter((item) => item.status === "confirmed").length} label="Подтверждено"/><Metric value={patients.length} label="Пациентов"/><Metric value={doctors.length} label="Врачей"/></section>
     <section className="workspace"><div className="calendar-panel"><div className="section-title"><div><span>Расписание</span><h1>{formatRange(range.from, range.to)}</h1></div><span className="phase">Phase 1</span></div>

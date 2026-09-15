@@ -264,6 +264,25 @@ export class FinanceService {
     });
   }
 
+  listCashboxes(auth:AuthContext){return this.database.withTenant(auth,async(client)=>(await client.query(`SELECT c.id,c.branch_id AS "branchId",
+    c.code,c.name,c.currency,b.name AS "branchName",EXISTS(SELECT 1 FROM cash_sessions s WHERE s.cashbox_id=c.id AND s.status='open') AS "hasOpenSession"
+    FROM cashboxes c JOIN branches b ON b.id=c.branch_id WHERE c.archived_at IS NULL ORDER BY c.name`)).rows);}
+
+  updateCashbox(auth:AuthContext,id:string,name:string){return this.renameFinanceResource(auth,"cashboxes","cashbox",id,name);}
+  archiveCashbox(auth:AuthContext,id:string){
+    return this.database.withTenant(auth,async(client)=>{
+      const before=(await client.query<Record<string,unknown>>("SELECT id,code,name FROM cashboxes WHERE id=$1 AND archived_at IS NULL FOR UPDATE",[id])).rows[0];
+      if(!before) throw new ApiException(HttpStatus.NOT_FOUND,"CASHBOX_NOT_FOUND","Cashbox not found");
+      if((await client.query("SELECT 1 FROM cash_sessions WHERE cashbox_id=$1 AND status='open'",[id])).rows[0])
+        throw new ApiException(HttpStatus.CONFLICT,"CASH_SESSION_OPEN","Close the cash session before archiving the cashbox");
+      await client.query("UPDATE cashboxes SET archived_at=now() WHERE id=$1",[id]);
+      await this.audit.append(client,{tenantId:auth.tenantId,actorUserId:auth.userId,action:"cashbox.archived",entityType:"cashbox",
+        entityId:id,before,after:{id,archived:true},requestId:auth.requestId});
+      await this.outbox.append(client,{tenantId:auth.tenantId,aggregateType:"cashbox",aggregateId:id,eventType:"CashboxArchived",
+        payload:{cashboxId:id},requestId:auth.requestId}); return {id,archived:true};
+    });
+  }
+
   openCashSession(auth:AuthContext,cashboxId:string,input:OpenCashSessionInput){
     return this.database.withTenant(auth,async(client)=>{
       const box=(await client.query("SELECT 1 FROM cashboxes WHERE id=$1 AND archived_at IS NULL",[cashboxId])).rows[0];
@@ -309,6 +328,19 @@ export class FinanceService {
     });
   }
 
+  listExpenseCategories(auth:AuthContext){return this.database.withTenant(auth,async(client)=>(await client.query(`SELECT id,code,name,currency
+    FROM expense_categories WHERE archived_at IS NULL ORDER BY name`)).rows);}
+  updateExpenseCategory(auth:AuthContext,id:string,name:string){return this.renameFinanceResource(auth,"expense_categories","expense_category",id,name);}
+  archiveExpenseCategory(auth:AuthContext,id:string){return this.database.withTenant(auth,async(client)=>{
+    const before=(await client.query<Record<string,unknown>>("SELECT id,code,name FROM expense_categories WHERE id=$1 AND archived_at IS NULL FOR UPDATE",[id])).rows[0];
+    if(!before) throw new ApiException(HttpStatus.NOT_FOUND,"EXPENSE_CATEGORY_NOT_FOUND","Expense category not found");
+    await client.query("UPDATE expense_categories SET archived_at=now() WHERE id=$1",[id]);
+    await this.audit.append(client,{tenantId:auth.tenantId,actorUserId:auth.userId,action:"expense_category.archived",
+      entityType:"expense_category",entityId:id,before,after:{id,archived:true},requestId:auth.requestId});
+    await this.outbox.append(client,{tenantId:auth.tenantId,aggregateType:"expense_category",aggregateId:id,
+      eventType:"ExpenseCategoryArchived",payload:{expenseCategoryId:id},requestId:auth.requestId}); return {id,archived:true};
+  });}
+
   createExpense(auth:AuthContext,input:CreateExpenseInput){
     return this.database.withTenant(auth,async(client)=>{
       const source=(await client.query<{accountId:string;currency:string}>(`SELECT c.financial_account_id AS "accountId",c.currency
@@ -350,6 +382,18 @@ export class FinanceService {
     return {id:payment.id,patientId:payment.patientId,branchId:payment.branchId,transactionId:payment.ledgerTransactionId,
       currency:payment.currency,totalAmountMinor:Number(payment.totalAmountMinor),note:payment.note,
       postedAt:payment.postedAt.toISOString(),parts,allocations,deposit:deposit ? moneyObject(deposit):null};
+  }
+
+  private renameFinanceResource(auth:AuthContext,table:"cashboxes"|"expense_categories",entityType:string,id:string,name:string){
+    return this.database.withTenant(auth,async(client)=>{
+      const before=(await client.query<Record<string,unknown>>(`SELECT id,code,name FROM ${table} WHERE id=$1 AND archived_at IS NULL FOR UPDATE`,[id])).rows[0];
+      if(!before) throw new ApiException(HttpStatus.NOT_FOUND,"RESOURCE_NOT_FOUND","Resource not found");
+      const after=(await client.query<Record<string,unknown>>(`UPDATE ${table} SET name=$2 WHERE id=$1 RETURNING id,code,name,currency`,[id,name])).rows[0]!;
+      await this.audit.append(client,{tenantId:auth.tenantId,actorUserId:auth.userId,action:`${entityType}.updated`,entityType,
+        entityId:id,before,after,requestId:auth.requestId});
+      await this.outbox.append(client,{tenantId:auth.tenantId,aggregateType:entityType,aggregateId:id,
+        eventType:`${entityType==="cashbox"?"Cashbox":"ExpenseCategory"}Updated`,payload:{id},requestId:auth.requestId}); return after;
+    });
   }
 
   private async findPayment(client:PoolClient,id:string,lock=false){

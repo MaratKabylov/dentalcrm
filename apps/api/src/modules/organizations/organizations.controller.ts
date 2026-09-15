@@ -1,7 +1,8 @@
-import { createOrganizationSchema, type CreateOrganizationInput } from "@dental/contracts";
-import { Body, Controller, Get, HttpStatus, Post } from "@nestjs/common";
+import { createOrganizationSchema, updateOrganizationSchema, uuidSchema, type CreateOrganizationInput } from "@dental/contracts";
+import { Body, Controller, Get, HttpStatus, Param, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { ApiException } from "../../common/http/api.exception.js";
+import { parseSchema } from "../../common/http/parse-schema.js";
 import { CurrentAuth } from "../identity/current-auth.decorator.js";
 import type { AuthContext } from "../identity/auth-context.js";
 import { RequirePermissions } from "../identity/permissions.decorator.js";
@@ -37,5 +38,15 @@ export class OrganizationsController {
       });
     }
     return this.organizations.create(auth, parsed.data as CreateOrganizationInput);
+  }
+
+  @Patch(":id")
+  update(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Body() body: unknown) {
+    return this.organizations.update(auth, parseSchema(uuidSchema, id), parseSchema(updateOrganizationSchema, body));
+  }
+
+  @Post(":id/archive")
+  archive(@CurrentAuth() auth: AuthContext, @Param("id") id: string) {
+    return this.organizations.archive(auth, parseSchema(uuidSchema, id));
   }
 }

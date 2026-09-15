@@ -18,11 +18,20 @@ Phase 1 is the first operational clinic slice described in the master architectu
 All routes use `/api/v1`, the Phase 0 authentication context, and granular RBAC permissions.
 
 ```text
+GET|POST  /branches
+PATCH     /branches/:id
+POST      /branches/:id/archive
+
 GET|POST  /rooms
 GET|POST  /chairs
 GET|POST  /employees
+GET|POST  /service-categories
 GET|POST  /services
 GET|POST  /price-lists
+GET|POST  /diagnoses
+
+PATCH     /rooms|chairs|service-categories|services|diagnoses/:id
+POST      /rooms|chairs|employees|service-categories|services|price-lists|diagnoses/:id/archive
 
 GET|POST  /patients
 GET|PATCH /patients/:id
@@ -58,7 +67,7 @@ npm run check
 corepack pnpm --filter @dental/api test:integration
 ```
 
-The seed command prints the local `tenantId`. Put it in `apps/web/.env.local` as `NEXT_PUBLIC_DEMO_TENANT_ID` before starting the web application. The Clinic Core screen then provides a live weekly calendar, quick patient registration, appointment creation, and normal visit-state actions.
+The seed command prints the local `tenantId`. Put it in `apps/web/.env.local` as `NEXT_PUBLIC_DEMO_TENANT_ID` before starting the web application. The Clinic Core screen then provides a live weekly calendar, quick patient registration, appointment creation, and normal visit-state actions. `/settings` provides the tenant's unified reference-data workspace for organizations, branches, resources, employees, the service catalog, diagnoses, cashboxes, and expense categories.
 
 ## Acceptance mapping
 

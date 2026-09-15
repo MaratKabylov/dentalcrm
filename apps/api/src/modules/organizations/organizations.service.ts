@@ -58,6 +58,39 @@ export class OrganizationsService {
       throw error;
     }
   }
+
+  update(auth: AuthContext, id: string, input: { name: string }): Promise<OrganizationDto> {
+    return this.database.withTenant(auth, async (client) => {
+      const before = await this.repository.findForUpdate(client, id);
+      if (!before) throw new ApiException(HttpStatus.NOT_FOUND, "ORGANIZATION_NOT_FOUND", "Organization not found");
+      const row = (await client.query<{ id: string; name: string; code: string; created_at: Date }>(`UPDATE organizations
+        SET name=$2,updated_at=now(),updated_by=$3,version=version+1 WHERE id=$1
+        RETURNING id,name,code,created_at`, [id, input.name, auth.userId])).rows[0]!;
+      const after = { id: row.id, name: row.name, code: row.code, createdAt: row.created_at.toISOString() };
+      await this.audit.append(client, { tenantId: auth.tenantId, actorUserId: auth.userId, action: "organization.updated",
+        entityType: "organization", entityId: id, before, after, requestId: auth.requestId });
+      await this.outbox.append(client, { tenantId: auth.tenantId, aggregateType: "organization", aggregateId: id,
+        eventType: "OrganizationUpdated", payload: { organizationId: id }, requestId: auth.requestId });
+      return after;
+    });
+  }
+
+  archive(auth: AuthContext, id: string) {
+    return this.database.withTenant(auth, async (client) => {
+      const before = await this.repository.findForUpdate(client, id);
+      if (!before) throw new ApiException(HttpStatus.NOT_FOUND, "ORGANIZATION_NOT_FOUND", "Organization not found");
+      const activeBranches = await client.query("SELECT 1 FROM branches WHERE organization_id=$1 AND archived_at IS NULL LIMIT 1", [id]);
+      if (activeBranches.rows[0]) throw new ApiException(HttpStatus.CONFLICT, "ORGANIZATION_HAS_BRANCHES",
+        "Archive the organization's branches first");
+      await client.query(`UPDATE organizations SET archived_at=now(),archived_by=$2,updated_at=now(),updated_by=$2,
+        version=version+1 WHERE id=$1`, [id, auth.userId]);
+      await this.audit.append(client, { tenantId: auth.tenantId, actorUserId: auth.userId, action: "organization.archived",
+        entityType: "organization", entityId: id, before, after: { archived: true }, requestId: auth.requestId });
+      await this.outbox.append(client, { tenantId: auth.tenantId, aggregateType: "organization", aggregateId: id,
+        eventType: "OrganizationArchived", payload: { organizationId: id }, requestId: auth.requestId });
+      return { id, archived: true };
+    });
+  }
 }
 
 function isUniqueViolation(error: unknown): boolean {
