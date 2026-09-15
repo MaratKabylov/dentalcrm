@@ -13,10 +13,11 @@ import { SchedulingModule } from "./modules/scheduling/scheduling.module.js";
 import { ClinicalModule } from "./modules/clinical/clinical.module.js";
 import { DocumentsModule } from "./modules/documents/documents.module.js";
 import { TreatmentPlansModule } from "./modules/treatment-plans/treatment-plans.module.js";
+import { FinanceModule } from "./modules/finance/finance.module.js";
 
 @Module({
   imports: [DatabaseModule, IdentityModule, HealthModule, OrganizationsModule, ClinicModule, PatientsModule, SchedulingModule,
-    ClinicalModule, TreatmentPlansModule, DocumentsModule],
+    ClinicalModule, TreatmentPlansModule, DocumentsModule, FinanceModule],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard }

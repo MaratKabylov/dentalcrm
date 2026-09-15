@@ -281,3 +281,103 @@ export type CreateTreatmentPlanInput = z.infer<typeof createTreatmentPlanSchema>
 export type AcceptTreatmentPlanInput = z.infer<typeof acceptTreatmentPlanSchema>;
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 export type SignDocumentInput = z.infer<typeof signDocumentSchema>;
+
+export const currencySchema = z.string().trim().length(3).transform((value) => value.toUpperCase());
+export const moneyMinorSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+export const idempotencyKeySchema = z.string().trim().min(8).max(128);
+
+export const createChargeSchema = z.object({
+  patientId: uuidSchema,
+  branchId: uuidSchema,
+  encounterId: uuidSchema.optional(),
+  currency: currencySchema.default("KZT"),
+  description: optionalText(500),
+  items: z.array(z.object({
+    serviceId: uuidSchema.optional(),
+    procedureId: uuidSchema.optional(),
+    description: z.string().trim().min(1).max(500),
+    quantity: z.number().int().min(1).max(1000).default(1),
+    unitPriceMinor: moneyMinorSchema
+  })).min(1)
+});
+
+export const paymentMethods = ["cash", "card", "bank_transfer", "kaspi", "deposit"] as const;
+export const createPaymentSchema = z.object({
+  patientId: uuidSchema,
+  branchId: uuidSchema,
+  currency: currencySchema.default("KZT"),
+  note: optionalText(500),
+  parts: z.array(z.object({
+    method: z.enum(paymentMethods),
+    amountMinor: moneyMinorSchema,
+    cashboxId: uuidSchema.optional(),
+    depositId: uuidSchema.optional(),
+    reference: optionalText(255)
+  }).superRefine((part, context) => {
+    if (part.method === "cash" && !part.cashboxId) {
+      context.addIssue({ code: "custom", message: "cashboxId is required for cash payments", path: ["cashboxId"] });
+    }
+    if (part.method === "deposit" && !part.depositId) {
+      context.addIssue({ code: "custom", message: "depositId is required for deposit payments", path: ["depositId"] });
+    }
+    if (part.method !== "deposit" && part.depositId) {
+      context.addIssue({ code: "custom", message: "depositId is only valid for deposit payments", path: ["depositId"] });
+    }
+    if (part.method !== "cash" && part.cashboxId) {
+      context.addIssue({ code: "custom", message: "cashboxId is only valid for cash payments", path: ["cashboxId"] });
+    }
+  })).min(1),
+  allocations: z.array(z.object({ chargeId: uuidSchema, amountMinor: moneyMinorSchema })).default([])
+});
+
+export const createRefundSchema = z.object({
+  reason: z.string().trim().min(3).max(1000),
+  parts: z.array(z.object({ paymentPartId: uuidSchema, amountMinor: moneyMinorSchema })).min(1),
+  allocations: z.array(z.object({
+    paymentAllocationId: uuidSchema.optional(),
+    depositId: uuidSchema.optional(),
+    amountMinor: moneyMinorSchema
+  }).refine((value) => Boolean(value.paymentAllocationId) !== Boolean(value.depositId), {
+    message: "Exactly one of paymentAllocationId or depositId is required"
+  })).min(1)
+});
+
+export const createCashboxSchema = z.object({
+  branchId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160),
+  currency: currencySchema.default("KZT")
+});
+
+export const openCashSessionSchema = z.object({
+  openingAmountMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(0)
+});
+
+export const closeCashSessionSchema = z.object({
+  closingAmountMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  note: optionalText(500)
+});
+
+export const createExpenseCategorySchema = z.object({
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160),
+  currency: currencySchema.default("KZT")
+});
+
+export const createExpenseSchema = z.object({
+  branchId: uuidSchema,
+  categoryId: uuidSchema,
+  cashboxId: uuidSchema,
+  amountMinor: moneyMinorSchema,
+  description: z.string().trim().min(1).max(500),
+  occurredAt: dateTimeSchema.optional()
+});
+
+export type CreateChargeInput = z.infer<typeof createChargeSchema>;
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+export type CreateRefundInput = z.infer<typeof createRefundSchema>;
+export type CreateCashboxInput = z.infer<typeof createCashboxSchema>;
+export type OpenCashSessionInput = z.infer<typeof openCashSessionSchema>;
+export type CloseCashSessionInput = z.infer<typeof closeCashSessionSchema>;
+export type CreateExpenseCategoryInput = z.infer<typeof createExpenseCategorySchema>;
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
