@@ -630,3 +630,114 @@ export const publicWaitlistOfferSchema = z.object({
 export type CreateRecallTypeInput = z.infer<typeof createRecallTypeSchema>;
 export type RecallAttemptInput = z.infer<typeof recallAttemptSchema>;
 export type CreateWaitlistEntryInput = z.infer<typeof createWaitlistEntrySchema>;
+
+// Phase 6 — Inventory
+const inventoryQuantitySchema = z.number().positive().max(1_000_000_000);
+const inventoryItemSchema = z.object({
+  productId: uuidSchema,
+  quantity: inventoryQuantitySchema
+});
+
+export const createUnitOfMeasureSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(120),
+  symbol: z.string().trim().min(1).max(16),
+  decimalPlaces: z.number().int().min(0).max(6).default(3)
+});
+
+export const createProductCategorySchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160)
+});
+
+export const createProductSchema = z.object({
+  organizationId: uuidSchema,
+  categoryId: uuidSchema.optional(),
+  unitId: uuidSchema,
+  sku: z.string().trim().min(1).max(64),
+  name: z.string().trim().min(1).max(180),
+  barcode: z.string().trim().min(1).max(64).optional(),
+  trackBatches: z.boolean().default(true),
+  minimumStock: z.number().nonnegative().max(1_000_000_000).default(0)
+});
+
+export const createSupplierSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  phone: optionalText(32),
+  email: z.email().optional()
+});
+
+export const createWarehouseSchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema.optional(),
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160)
+});
+
+export const receiveStockSchema = z.object({
+  warehouseId: uuidSchema,
+  supplierId: uuidSchema.optional(),
+  reference: optionalText(120),
+  receivedAt: dateTimeSchema.optional(),
+  items: z.array(inventoryItemSchema.extend({
+    lotNumber: z.string().trim().min(1).max(120).optional(),
+    manufacturedAt: z.string().date().optional(),
+    expiresAt: z.string().date().optional(),
+    purchasePriceMinor: z.number().int().nonnegative().optional(),
+    currency: z.string().trim().length(3).default("KZT")
+  }).refine((item) => !item.manufacturedAt || !item.expiresAt || item.expiresAt >= item.manufacturedAt, {
+    message: "expiresAt must be on or after manufacturedAt", path: ["expiresAt"]
+  })).min(1).max(500)
+});
+
+export const transferStockSchema = z.object({
+  sourceWarehouseId: uuidSchema,
+  destinationWarehouseId: uuidSchema,
+  notes: optionalText(1000),
+  items: z.array(inventoryItemSchema).min(1).max(500)
+}).refine((value) => value.sourceWarehouseId !== value.destinationWarehouseId, {
+  message: "Warehouses must differ", path: ["destinationWarehouseId"]
+});
+
+export const writeoffStockSchema = z.object({
+  warehouseId: uuidSchema,
+  reason: z.string().trim().min(1).max(1000),
+  items: z.array(inventoryItemSchema).min(1).max(500)
+});
+
+export const createStocktakeSchema = z.object({
+  warehouseId: uuidSchema,
+  notes: optionalText(1000),
+  items: z.array(z.object({
+    productId: uuidSchema,
+    batchId: uuidSchema.optional(),
+    countedQuantity: z.number().nonnegative().max(1_000_000_000)
+  })).min(1).max(2000)
+});
+
+export const upsertServiceRecipeSchema = z.object({
+  organizationId: uuidSchema,
+  serviceId: uuidSchema,
+  items: z.array(inventoryItemSchema).min(1).max(100)
+});
+
+export const confirmMaterialConsumptionSchema = z.object({
+  warehouseId: uuidSchema,
+  items: z.array(inventoryItemSchema).min(1).max(100).optional()
+});
+
+export type CreateUnitOfMeasureInput = z.infer<typeof createUnitOfMeasureSchema>;
+export type CreateProductCategoryInput = z.infer<typeof createProductCategorySchema>;
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
+export type CreateWarehouseInput = z.infer<typeof createWarehouseSchema>;
+export type ReceiveStockInput = z.infer<typeof receiveStockSchema>;
+export type TransferStockInput = z.infer<typeof transferStockSchema>;
+export type WriteoffStockInput = z.infer<typeof writeoffStockSchema>;
+export type CreateStocktakeInput = z.infer<typeof createStocktakeSchema>;
+export type UpsertServiceRecipeInput = z.infer<typeof upsertServiceRecipeSchema>;
+export type ConfirmMaterialConsumptionInput = z.infer<typeof confirmMaterialConsumptionSchema>;

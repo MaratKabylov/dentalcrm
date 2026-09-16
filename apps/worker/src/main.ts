@@ -28,8 +28,31 @@ async function deliverIdempotently(client:PoolClient,tenantId:string,event:{id:s
   await deliver(client,tenantId,event.id,"workflow-enqueue",async()=>enqueueWorkflows(client,tenantId,event));
   await deliver(client,tenantId,event.id,"recall-scheduler",async()=>scheduleRecalls(client,tenantId,event));
   await deliver(client,tenantId,event.id,"waitlist-matcher",async()=>matchWaitlist(client,tenantId,event));
+  await deliver(client,tenantId,event.id,"inventory-consumption-planner",async()=>planMaterialConsumption(client,tenantId,event));
   await deliver(client,tenantId,event.id,"foundation-console-handler",async()=>console.info(JSON.stringify({message:"domain_event_delivered",tenantId,
     eventType:event.event_type,payload:redact(event.payload)})));
+}
+
+async function planMaterialConsumption(client:PoolClient,tenantId:string,event:{id:string;event_type:string;payload:Record<string,unknown>}){
+  if(event.event_type!=="ProcedureCompleted")return;const procedureId=event.payload.procedureId;
+  if(typeof procedureId!=="string" || !isUuid(procedureId))return;
+  const source=(await client.query<{organization_id:string;recipe_id:string;procedure_quantity:number}>(`SELECT b.organization_id,
+    r.id AS recipe_id,p.quantity AS procedure_quantity FROM procedures p JOIN encounters e ON e.id=p.encounter_id
+    JOIN branches b ON b.id=e.branch_id JOIN service_material_recipes r ON r.organization_id=b.organization_id
+      AND r.service_id=p.service_id AND r.active WHERE p.id=$1 AND p.status='completed'`,[procedureId])).rows[0];
+  if(!source)return;
+  const consumption=(await client.query<{id:string}>(`INSERT INTO material_consumptions(tenant_id,organization_id,procedure_id)
+    VALUES($1,$2,$3) ON CONFLICT(tenant_id,procedure_id) DO NOTHING RETURNING id`,[tenantId,source.organization_id,procedureId])).rows[0];
+  if(!consumption)return;
+  await client.query(`INSERT INTO material_consumption_lines(tenant_id,organization_id,consumption_id,product_id,planned_quantity)
+    SELECT $1,$2,$3,i.product_id,i.quantity*$4 FROM service_material_recipe_items i WHERE i.recipe_id=$5`,
+    [tenantId,source.organization_id,consumption.id,source.procedure_quantity,source.recipe_id]);
+  const requestId=`inventory:${event.id}:${consumption.id}`;
+  await client.query(`INSERT INTO outbox_events(tenant_id,aggregate_type,aggregate_id,event_type,payload,request_id)
+    VALUES($1,'material_consumption',$2,'MaterialConsumptionPlanned',$3::jsonb,$4)`,[tenantId,consumption.id,
+    JSON.stringify({materialConsumptionId:consumption.id,procedureId,organizationId:source.organization_id}),requestId]);
+  await appendAudit(client,{tenantId,action:"material_consumption.planned",entityType:"material_consumption",entityId:consumption.id,
+    after:{procedureId,organizationId:source.organization_id,status:"planned"},requestId});
 }
 
 async function deliver(client:PoolClient,tenantId:string,eventId:string,handler:string,operation:()=>Promise<void>){const claimed=await client.query(
