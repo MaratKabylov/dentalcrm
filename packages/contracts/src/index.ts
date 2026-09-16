@@ -425,3 +425,154 @@ export type UpdateBranchInput = z.infer<typeof updateBranchSchema>;
 export type CreateServiceCategoryInput = z.infer<typeof createServiceCategorySchema>;
 export type CreateDiagnosisCatalogInput = z.infer<typeof createDiagnosisCatalogSchema>;
 export type UpdateServiceCatalogInput = z.infer<typeof updateServiceCatalogSchema>;
+
+// Phase 4 — CRM and Workflow
+export const createCrmCatalogItemSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(120)
+});
+
+export const createOpportunityStageSchema = z.object({
+  organizationId: uuidSchema,
+  key: z.string().trim().min(1).max(48).regex(/^[a-z0-9_]+$/),
+  name: z.string().trim().min(1).max(120),
+  position: z.number().int().nonnegative(),
+  isTerminal: z.boolean().default(false),
+  terminalKind: z.enum(["won", "lost"]).optional()
+}).superRefine((value, context) => {
+  if (value.isTerminal !== Boolean(value.terminalKind)) {
+    context.addIssue({ code: "custom", message: "terminalKind is required only for terminal stages", path: ["terminalKind"] });
+  }
+});
+
+export const createLeadSchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema.optional(),
+  sourceId: uuidSchema.optional(),
+  channelId: uuidSchema.optional(),
+  firstName: z.string().trim().min(1).max(80),
+  lastName: optionalText(80),
+  phone: z.string().trim().min(5).max(32),
+  email: z.email().optional(),
+  interest: optionalText(500),
+  notes: optionalText(4000)
+});
+
+export const updateLeadSchema = z.object({
+  sourceId: uuidSchema.nullable().optional(),
+  channelId: uuidSchema.nullable().optional(),
+  firstName: z.string().trim().min(1).max(80).optional(),
+  lastName: z.string().trim().max(80).nullable().optional(),
+  phone: z.string().trim().min(5).max(32).optional(),
+  email: z.email().nullable().optional(),
+  interest: z.string().trim().max(500).nullable().optional(),
+  notes: z.string().trim().max(4000).nullable().optional(),
+  status: z.enum(["new", "qualified"]).optional()
+}).refine((value) => Object.keys(value).length > 0);
+
+export const convertLeadSchema = z.object({
+  patientId: uuidSchema.optional(),
+  opportunityTitle: z.string().trim().min(1).max(180),
+  expectedAmountMinor: z.number().int().nonnegative().optional(),
+  currency: currencySchema.default("KZT")
+});
+
+export const loseLeadSchema = z.object({ reason: z.string().trim().min(3).max(1000) });
+
+export const createOpportunitySchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema.optional(),
+  patientId: uuidSchema,
+  leadId: uuidSchema.optional(),
+  treatmentPlanId: uuidSchema.optional(),
+  stageId: uuidSchema.optional(),
+  title: z.string().trim().min(1).max(180),
+  expectedAmountMinor: z.number().int().nonnegative().optional(),
+  currency: currencySchema.default("KZT")
+});
+
+export const transitionOpportunitySchema = z.object({
+  stageId: uuidSchema,
+  reason: z.string().trim().min(3).max(1000).optional()
+});
+
+export const linkOpportunityPlanSchema = z.object({ treatmentPlanId: uuidSchema });
+
+export const createCrmActivitySchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema.optional(),
+  leadId: uuidSchema.optional(),
+  opportunityId: uuidSchema.optional(),
+  patientId: uuidSchema.optional(),
+  activityType: z.enum(["note", "call", "message", "email", "meeting"]),
+  direction: z.enum(["inbound", "outbound"]).optional(),
+  subject: optionalText(180),
+  body: z.string().trim().min(1).max(10_000)
+}).refine((value) => Boolean(value.leadId || value.opportunityId || value.patientId), {
+  message: "At least one CRM subject is required"
+});
+
+export const createTaskSchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema.optional(),
+  assignedEmployeeId: uuidSchema.optional(),
+  entityType: z.string().trim().min(1).max(48).optional(),
+  entityId: uuidSchema.optional(),
+  title: z.string().trim().min(1).max(180),
+  description: optionalText(10_000),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  dueAt: dateTimeSchema.optional()
+}).refine((value) => Boolean(value.entityType) === Boolean(value.entityId), {
+  message: "entityType and entityId must be supplied together"
+});
+
+export const transitionTaskSchema = z.object({
+  status: z.enum(["open", "in_progress", "completed", "cancelled"]),
+  reason: optionalText(1000)
+});
+export const createTaskCommentSchema = z.object({ body: z.string().trim().min(1).max(10_000) });
+
+const workflowConditionSchema = z.object({
+  fieldPath: z.string().trim().min(1).max(255).regex(/^[a-zA-Z0-9_.]+$/),
+  operator: z.enum(["equals", "not_equals", "exists", "in"]),
+  expectedValue: z.unknown().optional()
+});
+const createTaskActionSchema = z.object({
+  actionType: z.literal("CREATE_TASK"),
+  configuration: z.object({
+    title: z.string().trim().min(1).max(180),
+    description: optionalText(10_000),
+    priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+    dueInMinutes: z.number().int().min(0).max(525_600).optional(),
+    branchId: uuidSchema.optional(),
+    assignedEmployeeId: uuidSchema.optional(),
+    entityType: z.string().trim().min(1).max(48).optional(),
+    entityIdPath: z.string().trim().min(1).max(255).regex(/^[a-zA-Z0-9_.]+$/).optional()
+  }).refine((value) => Boolean(value.entityType) === Boolean(value.entityIdPath), {
+    message: "entityType and entityIdPath must be supplied together"
+  })
+});
+
+export const createWorkflowRuleSchema = z.object({
+  organizationId: uuidSchema,
+  name: z.string().trim().min(1).max(160),
+  eventType: z.string().trim().min(1).max(128).regex(/^[A-Za-z][A-Za-z0-9]+$/),
+  delaySeconds: z.number().int().min(0).max(31_536_000).default(0),
+  conditions: z.array(workflowConditionSchema).max(20).default([]),
+  actions: z.array(createTaskActionSchema).min(1).max(20)
+});
+
+export const setWorkflowRuleActiveSchema = z.object({ active: z.boolean() });
+
+export type CreateCrmCatalogItemInput = z.infer<typeof createCrmCatalogItemSchema>;
+export type CreateOpportunityStageInput = z.infer<typeof createOpportunityStageSchema>;
+export type CreateLeadInput = z.infer<typeof createLeadSchema>;
+export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
+export type ConvertLeadInput = z.infer<typeof convertLeadSchema>;
+export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>;
+export type TransitionOpportunityInput = z.infer<typeof transitionOpportunitySchema>;
+export type CreateCrmActivityInput = z.infer<typeof createCrmActivitySchema>;
+export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type TransitionTaskInput = z.infer<typeof transitionTaskSchema>;
+export type CreateWorkflowRuleInput = z.infer<typeof createWorkflowRuleSchema>;
