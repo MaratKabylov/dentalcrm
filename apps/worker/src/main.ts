@@ -26,8 +26,10 @@ async function processNextOutbox(tenantId:string):Promise<number>{const client=a
 
 async function deliverIdempotently(client:PoolClient,tenantId:string,event:{id:string;event_type:string;payload:Record<string,unknown>;occurred_at:Date}){
   await deliver(client,tenantId,event.id,"workflow-enqueue",async()=>enqueueWorkflows(client,tenantId,event));
+  await deliver(client,tenantId,event.id,"recall-scheduler",async()=>scheduleRecalls(client,tenantId,event));
+  await deliver(client,tenantId,event.id,"waitlist-matcher",async()=>matchWaitlist(client,tenantId,event));
   await deliver(client,tenantId,event.id,"foundation-console-handler",async()=>console.info(JSON.stringify({message:"domain_event_delivered",tenantId,
-    eventType:event.event_type,payload:event.payload})));
+    eventType:event.event_type,payload:redact(event.payload)})));
 }
 
 async function deliver(client:PoolClient,tenantId:string,eventId:string,handler:string,operation:()=>Promise<void>){const claimed=await client.query(
@@ -40,6 +42,69 @@ async function enqueueWorkflows(client:PoolClient,tenantId:string,event:{id:stri
     SELECT $1::uuid,r.organization_id,r.id,$2::uuid,$3::varchar(128),$4::jsonb,$5::timestamptz+(r.delay_seconds*interval '1 second')
     FROM workflow_rules r WHERE r.organization_id=$6::uuid AND r.event_type=$3::varchar(128) AND r.active AND r.archived_at IS NULL
     ON CONFLICT(tenant_id,rule_id,event_id) DO NOTHING`,[tenantId,event.id,event.event_type,JSON.stringify(event.payload),event.occurred_at,organizationId]);
+}
+
+async function scheduleRecalls(client:PoolClient,tenantId:string,event:{id:string;event_type:string;payload:Record<string,unknown>}){
+  if(event.event_type!=="AppointmentCompleted")return;const appointmentId=event.payload.appointmentId;
+  if(typeof appointmentId!=="string" || !isUuid(appointmentId))return;
+  const rows=(await client.query<{id:string;organization_id:string;patient_id:string;due_on:string}>(`INSERT INTO recalls
+    (tenant_id,organization_id,branch_id,recall_type_id,patient_id,source_appointment_id,due_on)
+    SELECT $1,b.organization_id,a.branch_id,t.id,a.patient_id,a.id,
+      ((a.ends_at AT TIME ZONE b.timezone)::date+t.interval_days)
+    FROM appointments a JOIN branches b ON b.id=a.branch_id
+    JOIN recall_types t ON t.organization_id=b.organization_id AND t.active AND t.archived_at IS NULL
+    WHERE a.id=$2 AND a.status='completed' AND (t.service_id IS NULL OR EXISTS(
+      SELECT 1 FROM appointment_services aps WHERE aps.appointment_id=a.id AND aps.service_id=t.service_id))
+    ON CONFLICT(tenant_id,recall_type_id,source_appointment_id) WHERE source_appointment_id IS NOT NULL DO NOTHING
+    RETURNING id,organization_id,patient_id,due_on`,[tenantId,appointmentId])).rows;
+  for(const recall of rows){const requestId=`recall:${event.id}:${recall.id}`;await client.query(`INSERT INTO outbox_events
+      (tenant_id,aggregate_type,aggregate_id,event_type,payload,request_id) VALUES($1,'recall',$2,'RecallScheduled',$3::jsonb,$4)`,
+      [tenantId,recall.id,JSON.stringify({recallId:recall.id,organizationId:recall.organization_id,patientId:recall.patient_id,dueOn:recall.due_on}),requestId]);
+    await appendAudit(client,{tenantId,action:"recall.scheduled",entityType:"recall",entityId:recall.id,
+      after:{appointmentId,patientId:recall.patient_id,dueOn:recall.due_on},requestId});}
+}
+
+async function matchWaitlist(client:PoolClient,tenantId:string,event:{id:string;event_type:string;payload:Record<string,unknown>}){
+  if(event.event_type!=="AppointmentCancelled")return;const appointmentId=event.payload.appointmentId;
+  if(typeof appointmentId!=="string" || !isUuid(appointmentId))return;
+  const slot=(await client.query<{organization_id:string;patient_id:string;branch_id:string;doctor_id:string;room_id:string|null;chair_id:string|null;
+    starts_at:Date;ends_at:Date;timezone:string;specialty:string|null}>(`SELECT b.organization_id,a.patient_id,a.branch_id,a.doctor_id,a.room_id,a.chair_id,
+      a.starts_at,a.ends_at,b.timezone,d.specialty FROM appointments a JOIN branches b ON b.id=a.branch_id JOIN doctors d ON d.id=a.doctor_id
+      WHERE a.id=$1 AND a.status='cancelled'`,[appointmentId])).rows[0];
+  if(!slot || slot.starts_at.getTime()<=Date.now())return;
+  const candidates=(await client.query<{id:string;patient_id:string}>(`SELECT w.id,w.patient_id FROM waitlist_entries w
+    WHERE w.organization_id=$1 AND w.status='active' AND w.patient_id<>$2
+      AND (w.date_from<=($3::timestamptz AT TIME ZONE $8)::date AND w.date_to>=($3::timestamptz AT TIME ZONE $8)::date)
+      AND w.desired_duration_minutes<=extract(epoch FROM ($4::timestamptz-$3::timestamptz))/60
+      AND now()+(w.minimum_notice_minutes*interval '1 minute')<=$3::timestamptz
+      AND (NOT EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='branch')
+        OR EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='branch' AND p.branch_id=$5))
+      AND (NOT EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='doctor')
+        OR EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='doctor' AND p.doctor_id=$6))
+      AND (NOT EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='specialty')
+        OR EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='specialty' AND lower(p.specialty)=lower($7)))
+      AND (NOT EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='weekday')
+        OR EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='weekday'
+          AND p.weekday=extract(isodow FROM ($3::timestamptz AT TIME ZONE $8))))
+      AND (NOT EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='time_range')
+        OR EXISTS(SELECT 1 FROM waitlist_preferences p WHERE p.waitlist_entry_id=w.id AND p.kind='time_range'
+          AND p.starts_at<=($3::timestamptz AT TIME ZONE $8)::time AND p.ends_at>=($4::timestamptz AT TIME ZONE $8)::time))
+    ORDER BY w.priority DESC,w.created_at LIMIT 50`,[slot.organization_id,slot.patient_id,slot.starts_at,slot.ends_at,slot.branch_id,
+      slot.doctor_id,slot.specialty ?? "",slot.timezone])).rows;
+  for(const candidate of candidates){const secret=randomUUID(),tokenHash=createHash("sha256").update(secret).digest("hex");
+    const expiresAt=new Date(Math.min(slot.starts_at.getTime(),Date.now()+30*60*1000));
+    const offer=(await client.query<{id:string}>(`INSERT INTO waitlist_offers(tenant_id,organization_id,waitlist_entry_id,
+      source_appointment_id,patient_id,branch_id,doctor_id,room_id,chair_id,starts_at,ends_at,token_hash,expires_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ON CONFLICT(tenant_id,waitlist_entry_id,source_appointment_id) DO NOTHING RETURNING id`,[tenantId,slot.organization_id,candidate.id,
+      appointmentId,candidate.patient_id,slot.branch_id,slot.doctor_id,slot.room_id,slot.chair_id,slot.starts_at,slot.ends_at,tokenHash,expiresAt])).rows[0];
+    if(!offer)continue;const publicToken=`${tenantId}.${secret}`,requestId=`waitlist:${event.id}:${offer.id}`;
+    await client.query(`INSERT INTO outbox_events(tenant_id,aggregate_type,aggregate_id,event_type,payload,request_id)
+      VALUES($1,'waitlist_offer',$2,'WaitlistSlotAvailable',$3::jsonb,$4)`,[tenantId,offer.id,JSON.stringify({offerId:offer.id,
+        waitlistEntryId:candidate.id,organizationId:slot.organization_id,patientId:candidate.patient_id,branchId:slot.branch_id,
+        startsAt:slot.starts_at.toISOString(),endsAt:slot.ends_at.toISOString(),expiresAt:expiresAt.toISOString(),bookingToken:publicToken}),requestId]);
+    await appendAudit(client,{tenantId,action:"waitlist_offer.created",entityType:"waitlist_offer",entityId:offer.id,
+      after:{waitlistEntryId:candidate.id,sourceAppointmentId:appointmentId,startsAt:slot.starts_at.toISOString(),expiresAt:expiresAt.toISOString()},requestId});}
 }
 
 async function processNextWorkflow(tenantId:string):Promise<number>{const client=await pool.connect();try{await beginTenant(client,tenantId);
@@ -113,5 +178,7 @@ function deepEqual(a:unknown,b:unknown){return stable(a)===stable(b);}
 function stable(value:unknown):string{if(value===undefined)return"null";if(value===null||typeof value!=="object")return JSON.stringify(value);
   if(Array.isArray(value))return`[${value.map(stable).join(",")}]`;const record=value as Record<string,unknown>;
   return`{${Object.keys(record).sort().map((key)=>`${JSON.stringify(key)}:${stable(record[key])}`).join(",")}}`;}
+function redact(payload:Record<string,unknown>){return Object.fromEntries(Object.entries(payload).map(([key,value])=>
+  [key,key.toLowerCase().includes("token")?"[REDACTED]":value]));}
 function message(error:unknown){return error instanceof Error?error.message:String(error);}
 function delay(milliseconds:number){return new Promise<void>((resolve)=>setTimeout(resolve,milliseconds));}

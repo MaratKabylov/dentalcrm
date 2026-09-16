@@ -576,3 +576,57 @@ export type CreateCrmActivityInput = z.infer<typeof createCrmActivitySchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type TransitionTaskInput = z.infer<typeof transitionTaskSchema>;
 export type CreateWorkflowRuleInput = z.infer<typeof createWorkflowRuleSchema>;
+
+// Phase 5 — Recall and Waitlist
+export const createRecallTypeSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160),
+  serviceId: uuidSchema.optional(),
+  intervalDays: z.number().int().min(1).max(3650),
+  active: z.boolean().default(true)
+});
+
+export const recallAttemptSchema = z.object({
+  channel: z.enum(["phone", "sms", "email", "messenger", "other"]),
+  outcome: z.enum(["no_answer", "contacted", "declined", "booked"]),
+  notes: optionalText(4000),
+  appointmentId: uuidSchema.optional()
+}).superRefine((value, context) => {
+  if (value.outcome === "booked" && !value.appointmentId) {
+    context.addIssue({ code: "custom", message: "appointmentId is required for a booked recall", path: ["appointmentId"] });
+  }
+});
+
+const waitlistTimeRangeSchema = z.object({
+  startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+}).refine((value) => value.endsAt > value.startsAt, { message: "endsAt must be later than startsAt", path: ["endsAt"] });
+
+export const createWaitlistEntrySchema = z.object({
+  organizationId: uuidSchema,
+  patientId: uuidSchema,
+  dateFrom: z.string().date(),
+  dateTo: z.string().date(),
+  desiredDurationMinutes: z.number().int().min(5).max(720),
+  minimumNoticeMinutes: z.number().int().min(0).max(525_600).default(0),
+  priority: z.number().int().min(0).max(100).default(0),
+  doctorIds: z.array(uuidSchema).max(50).default([]),
+  specialties: z.array(z.string().trim().min(1).max(120)).max(50).default([]),
+  branchIds: z.array(uuidSchema).max(50).default([]),
+  weekdays: z.array(z.number().int().min(1).max(7)).max(7).default([]),
+  timeRanges: z.array(waitlistTimeRangeSchema).max(14).default([]),
+  notes: optionalText(4000)
+}).refine((value) => value.dateTo >= value.dateFrom, {
+  message: "dateTo must be on or after dateFrom", path: ["dateTo"]
+});
+
+export const cancelWaitlistEntrySchema = z.object({ reason: z.string().trim().min(1).max(1000) });
+
+export const publicWaitlistOfferSchema = z.object({
+  token: z.string().trim().min(1).max(200)
+});
+
+export type CreateRecallTypeInput = z.infer<typeof createRecallTypeSchema>;
+export type RecallAttemptInput = z.infer<typeof recallAttemptSchema>;
+export type CreateWaitlistEntryInput = z.infer<typeof createWaitlistEntrySchema>;

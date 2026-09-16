@@ -132,8 +132,14 @@ export class SchedulingService {
       await this.audit.append(client, { tenantId: auth.tenantId, actorUserId: auth.userId, action: `appointment.${target}`,
         entityType: "appointment", entityId: id, before: toDto(row), after: appointment,
         ...(reason ? { reason } : {}), requestId: auth.requestId });
+      const context=(await client.query<{organizationId:string;serviceIds:string[]}>(`SELECT b.organization_id AS "organizationId",
+        COALESCE(array_agg(s.service_id) FILTER(WHERE s.service_id IS NOT NULL),'{}') AS "serviceIds"
+        FROM branches b LEFT JOIN appointment_services s ON s.appointment_id=$1 WHERE b.id=$2 GROUP BY b.organization_id`,
+        [id,row.branchId])).rows[0]!;
       await this.outbox.append(client, { tenantId: auth.tenantId, aggregateType: "appointment", aggregateId: id,
-        eventType: `Appointment${eventSuffix(target)}`, payload: { appointmentId: id, status: target }, requestId: auth.requestId });
+        eventType: `Appointment${eventSuffix(target)}`, payload: { appointmentId: id, status: target, organizationId: context.organizationId,
+          branchId: row.branchId, patientId: row.patientId, doctorId: row.doctorId, startsAt: row.startsAt.toISOString(),
+          endsAt: row.endsAt.toISOString(), serviceIds: context.serviceIds }, requestId: auth.requestId });
       return appointment;
     });
   }

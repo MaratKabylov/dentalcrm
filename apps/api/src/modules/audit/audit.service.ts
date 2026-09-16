@@ -4,7 +4,7 @@ import type { PoolClient } from "pg";
 
 export interface AuditEntry {
   tenantId: string;
-  actorUserId: string;
+  actorUserId: string | null;
   action: string;
   entityType: string;
   entityId?: string;

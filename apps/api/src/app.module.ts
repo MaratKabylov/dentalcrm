@@ -17,10 +17,11 @@ import { FinanceModule } from "./modules/finance/finance.module.js";
 import { CrmModule } from "./modules/crm/crm.module.js";
 import { TasksModule } from "./modules/tasks/tasks.module.js";
 import { WorkflowModule } from "./modules/workflow/workflow.module.js";
+import { EngagementModule } from "./modules/engagement/engagement.module.js";
 
 @Module({
   imports: [DatabaseModule, IdentityModule, HealthModule, OrganizationsModule, ClinicModule, PatientsModule, SchedulingModule,
-    ClinicalModule, TreatmentPlansModule, DocumentsModule, FinanceModule, CrmModule, TasksModule, WorkflowModule],
+    ClinicalModule, TreatmentPlansModule, DocumentsModule, FinanceModule, CrmModule, TasksModule, WorkflowModule, EngagementModule],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard }
