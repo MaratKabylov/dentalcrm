@@ -741,3 +741,89 @@ export type WriteoffStockInput = z.infer<typeof writeoffStockSchema>;
 export type CreateStocktakeInput = z.infer<typeof createStocktakeSchema>;
 export type UpsertServiceRecipeInput = z.infer<typeof upsertServiceRecipeSchema>;
 export type ConfirmMaterialConsumptionInput = z.infer<typeof confirmMaterialConsumptionSchema>;
+
+// Phase 7 — Compensation
+const compensationConditionSchema = z.object({
+  employeeId: uuidSchema.optional(),
+  branchId: uuidSchema.optional(),
+  serviceId: uuidSchema.optional(),
+  serviceCategoryId: uuidSchema.optional(),
+  paymentMethod: z.enum(["cash", "card", "bank_transfer", "deposit", "insurance", "other"]).optional()
+});
+
+export const compensationRuleVersionSchema = z.object({
+  calculationType: z.enum(["percentage", "fixed", "hourly", "salary", "formula"]),
+  calculationBasis: z.enum([
+    "gross_service_amount", "net_after_discount", "net_after_acquiring", "net_after_materials",
+    "net_after_laboratory", "custom"
+  ]).default("gross_service_amount"),
+  rate: z.number().positive().max(100).optional(),
+  amountMinor: z.number().int().nonnegative().optional(),
+  formula: z.record(z.string(), z.unknown()).optional(),
+  currency: z.string().trim().length(3).default("KZT"),
+  validFrom: z.string().date(),
+  validTo: z.string().date().optional(),
+  condition: compensationConditionSchema.default({})
+}).superRefine((value, context) => {
+  if (value.validTo && value.validTo < value.validFrom) {
+    context.addIssue({ code: "custom", message: "validTo must be on or after validFrom", path: ["validTo"] });
+  }
+  if (value.calculationType === "percentage" && value.rate === undefined) {
+    context.addIssue({ code: "custom", message: "rate is required for percentage rules", path: ["rate"] });
+  }
+  if (["fixed", "hourly", "salary"].includes(value.calculationType) && value.amountMinor === undefined) {
+    context.addIssue({ code: "custom", message: "amountMinor is required for fixed, hourly, and salary rules", path: ["amountMinor"] });
+  }
+  if (value.calculationType === "formula" && value.formula === undefined) {
+    context.addIssue({ code: "custom", message: "formula is required for formula rules", path: ["formula"] });
+  }
+});
+
+export const createCompensationRuleSchema = z.object({
+  organizationId: uuidSchema,
+  name: z.string().trim().min(1).max(160),
+  version: compensationRuleVersionSchema
+});
+
+export const createTimesheetSchema = z.object({
+  organizationId: uuidSchema,
+  employeeId: uuidSchema,
+  startsOn: z.string().date(),
+  endsOn: z.string().date(),
+  entries: z.array(z.object({
+    branchId: uuidSchema,
+    workedOn: z.string().date(),
+    minutes: z.number().int().min(1).max(1440),
+    notes: optionalText(1000)
+  })).min(1).max(366)
+}).superRefine((value, context) => {
+  if (value.endsOn < value.startsOn) context.addIssue({ code: "custom", message: "endsOn must be on or after startsOn", path: ["endsOn"] });
+  value.entries.forEach((entry, index) => {
+    if (entry.workedOn < value.startsOn || entry.workedOn > value.endsOn) {
+      context.addIssue({ code: "custom", message: "workedOn must be inside the timesheet period", path: ["entries", index, "workedOn"] });
+    }
+  });
+});
+
+export const rejectTimesheetSchema = z.object({ reason: z.string().trim().min(1).max(1000) });
+
+export const createPayrollPeriodSchema = z.object({
+  organizationId: uuidSchema,
+  startsOn: z.string().date(),
+  endsOn: z.string().date(),
+  currency: z.string().trim().length(3).default("KZT")
+}).refine((value) => value.endsOn >= value.startsOn, { message: "endsOn must be on or after startsOn", path: ["endsOn"] });
+
+export const createPayrollAdjustmentSchema = z.object({
+  employeeId: uuidSchema,
+  amountMinor: z.number().int().refine((value) => value !== 0, "amountMinor must not be zero"),
+  reason: z.string().trim().min(1).max(1000)
+});
+
+export const approvePayrollSchema = z.object({ note: optionalText(1000) });
+
+export type CompensationRuleVersionInput = z.infer<typeof compensationRuleVersionSchema>;
+export type CreateCompensationRuleInput = z.infer<typeof createCompensationRuleSchema>;
+export type CreateTimesheetInput = z.infer<typeof createTimesheetSchema>;
+export type CreatePayrollPeriodInput = z.infer<typeof createPayrollPeriodSchema>;
+export type CreatePayrollAdjustmentInput = z.infer<typeof createPayrollAdjustmentSchema>;
