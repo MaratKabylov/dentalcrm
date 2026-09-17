@@ -20,11 +20,12 @@ import { WorkflowModule } from "./modules/workflow/workflow.module.js";
 import { EngagementModule } from "./modules/engagement/engagement.module.js";
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { CompensationModule } from "./modules/compensation/compensation.module.js";
+import { ExperienceModule } from "./modules/experience/experience.module.js";
 
 @Module({
   imports: [DatabaseModule, IdentityModule, HealthModule, OrganizationsModule, ClinicModule, PatientsModule, SchedulingModule,
     ClinicalModule, TreatmentPlansModule, DocumentsModule, FinanceModule, CrmModule, TasksModule, WorkflowModule, EngagementModule, InventoryModule,
-    CompensationModule],
+    CompensationModule, ExperienceModule],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard }

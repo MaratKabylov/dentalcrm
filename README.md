@@ -19,4 +19,6 @@ In local `AUTH_MODE=development`, send `x-tenant-id` and `x-user-subject` header
 
 See [Foundation](docs/architecture/foundation.md), [Tenant and organization scope](docs/architecture/organization-scope.md),
 [Clinic Core](docs/architecture/clinic-core.md), [Clinical Core](docs/architecture/clinical-core.md), [Finance](docs/architecture/finance.md),
-and [CRM and Workflow](docs/architecture/phase-4-crm-workflow.md) for boundaries, security assumptions, API surface, and verification commands.
+[CRM and Workflow](docs/architecture/phase-4-crm-workflow.md), [Recall and Waitlist](docs/architecture/phase-5-recall-waitlist.md),
+[Inventory](docs/architecture/phase-6-inventory.md), [Compensation](docs/architecture/phase-7-compensation.md), and
+[Patient Experience](docs/architecture/phase-8-patient-experience.md) for boundaries, security assumptions, API surface, and verification commands.

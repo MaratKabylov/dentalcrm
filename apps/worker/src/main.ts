@@ -5,10 +5,13 @@ const databaseUrl=process.env.DATABASE_URL ?? "postgresql://dental:local-develop
 const appRole=process.env.DB_APP_ROLE ?? "dental_app";
 if(!/^[a-z_][a-z0-9_]*$/.test(appRole))throw new Error("DB_APP_ROLE is invalid");
 const pool=new pg.Pool({connectionString:databaseUrl,max:4});let stopping=false;
+const messagingWebhookUrl=process.env.MESSAGING_WEBHOOK_URL;
+const messagingWebhookToken=process.env.MESSAGING_WEBHOOK_TOKEN;
 process.on("SIGINT",()=>{stopping=true;});process.on("SIGTERM",()=>{stopping=true;});
 
 while(!stopping){const tenants=await pool.query<{id:string}>("SELECT id FROM tenants WHERE status='active'");let processed=0;
-  for(const tenant of tenants.rows){processed+=await processNextOutbox(tenant.id);processed+=await processNextWorkflow(tenant.id);}
+  for(const tenant of tenants.rows){processed+=await processNextOutbox(tenant.id);processed+=await processNextWorkflow(tenant.id);
+    processed+=await processNextNotification(tenant.id);}
   if(processed===0)await delay(1_000);
 }
 await pool.end();
@@ -152,6 +155,27 @@ async function processNextWorkflow(tenantId:string):Promise<number>{const client
       await client.query("COMMIT");return 1;}
   }catch(error){await client.query("ROLLBACK");console.error("Workflow processing failed",message(error));return 0;}finally{client.release();}}
 
+async function processNextNotification(tenantId:string):Promise<number>{if(!messagingWebhookUrl)return 0;const client=await pool.connect();
+  try{await beginTenant(client,tenantId);const job=(await client.query<{id:string;organization_id:string;channel:string;recipient:string;
+      rendered_subject:string|null;rendered_body:string;correlation_id:string;attempts:number}>(`SELECT id,organization_id,channel,recipient,
+      rendered_subject,rendered_body,correlation_id,attempts FROM notification_jobs WHERE status IN ('pending','failed')
+      AND scheduled_at<=now() AND attempts<5 ORDER BY scheduled_at FOR UPDATE SKIP LOCKED LIMIT 1`)).rows[0];
+    if(!job){await client.query("COMMIT");return 0;}await client.query("UPDATE notification_jobs SET status='processing' WHERE id=$1",[job.id]);
+    try{const response=await fetch(messagingWebhookUrl,{method:"POST",headers:{"content-type":"application/json",
+        ...(messagingWebhookToken?{authorization:`Bearer ${messagingWebhookToken}`}:{})},body:JSON.stringify({channel:job.channel,
+        recipient:job.recipient,subject:job.rendered_subject,body:job.rendered_body,correlationId:job.correlation_id})});
+      if(!response.ok)throw new Error(`Messaging provider returned HTTP ${response.status}`);const payload=await safeJson(response);
+      const providerMessageId=typeof payload.messageId==="string"?payload.messageId:null;
+      await client.query(`INSERT INTO notification_deliveries(tenant_id,organization_id,job_id,provider,provider_message_id,status,safe_response)
+        VALUES($1,$2,$3,'webhook',$4,'sent',$5::jsonb)`,[tenantId,job.organization_id,job.id,providerMessageId,
+        JSON.stringify({httpStatus:response.status})]);await client.query(`UPDATE notification_jobs SET status='sent',attempts=attempts+1,last_error=NULL
+        WHERE id=$1`,[job.id]);await client.query("COMMIT");return 1;
+    }catch(error){const attempt=job.attempts+1,nextDelaySeconds=Math.min(3600,30*(2**job.attempts));await client.query(`UPDATE notification_jobs
+        SET status=CASE WHEN $2>=5 THEN 'dead_letter' ELSE 'failed' END,attempts=$2,last_error=$3,
+        scheduled_at=CASE WHEN $2>=5 THEN scheduled_at ELSE now()+($4*interval '1 second') END WHERE id=$1`,
+        [job.id,attempt,safeError(error),nextDelaySeconds]);await client.query("COMMIT");return 1;}
+  }catch(error){await client.query("ROLLBACK");console.error("Notification processing failed",safeError(error));return 0;}finally{client.release();}}
+
 async function createTask(client:PoolClient,tenantId:string,run:{id:string;organization_id:string;event_payload:Record<string,unknown>},
   actionId:string,config:Record<string,unknown>){if(typeof config.title!=="string" || !config.title.trim())throw new Error("CREATE_TASK title is invalid");
   const branchId=optionalUuid(config.branchId,"branchId"),assignedEmployeeId=optionalUuid(config.assignedEmployeeId,"assignedEmployeeId");
@@ -204,4 +228,7 @@ function stable(value:unknown):string{if(value===undefined)return"null";if(value
 function redact(payload:Record<string,unknown>){return Object.fromEntries(Object.entries(payload).map(([key,value])=>
   [key,key.toLowerCase().includes("token")?"[REDACTED]":value]));}
 function message(error:unknown){return error instanceof Error?error.message:String(error);}
+function safeError(error:unknown){return message(error).replace(/[\r\n\t]+/g," ").slice(0,500);}
+async function safeJson(response:Response):Promise<Record<string,unknown>>{try{const value=await response.json();return value && typeof value==="object" &&
+  !Array.isArray(value)?value as Record<string,unknown>:{};}catch{return {};}}
 function delay(milliseconds:number){return new Promise<void>((resolve)=>setTimeout(resolve,milliseconds));}

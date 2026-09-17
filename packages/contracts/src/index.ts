@@ -827,3 +827,166 @@ export type CreateCompensationRuleInput = z.infer<typeof createCompensationRuleS
 export type CreateTimesheetInput = z.infer<typeof createTimesheetSchema>;
 export type CreatePayrollPeriodInput = z.infer<typeof createPayrollPeriodSchema>;
 export type CreatePayrollAdjustmentInput = z.infer<typeof createPayrollAdjustmentSchema>;
+
+// Phase 8 — Patient Experience
+export const messagingChannels = ["whatsapp", "sms", "email", "push", "in_app"] as const;
+
+export const createMessageTemplateSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160),
+  channel: z.enum(messagingChannels),
+  locale: z.string().trim().min(2).max(16).default("ru"),
+  subject: optionalText(255),
+  body: z.string().trim().min(1).max(20_000)
+});
+export const messageTemplateVersionSchema = createMessageTemplateSchema.pick({ locale: true, subject: true, body: true });
+
+export const queueNotificationSchema = z.object({
+  organizationId: uuidSchema,
+  patientId: uuidSchema.optional(),
+  templateId: uuidSchema,
+  channel: z.enum(messagingChannels),
+  recipient: z.string().trim().min(3).max(320),
+  variables: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).default({}),
+  scheduledAt: dateTimeSchema.optional(),
+  correlationId: z.string().trim().min(1).max(128),
+  idempotencyKey: idempotencyKeySchema
+});
+
+export const createPortalInvitationSchema = z.object({
+  organizationId: uuidSchema,
+  patientId: uuidSchema,
+  contactType: z.enum(["email", "phone"]),
+  contact: z.string().trim().min(3).max(320),
+  relationship: z.enum(["self", "parent", "guardian", "representative"]),
+  evidenceReference: z.string().trim().min(3).max(1000),
+  accessLevel: z.enum(["read_only", "full"]).default("full"),
+  expiresInHours: z.number().int().min(1).max(168).default(24)
+});
+
+export const exchangePortalInvitationSchema = z.object({ invitationToken: z.string().trim().min(20).max(256) });
+export const portalSessionTokenSchema = z.string().trim().min(20).max(256);
+export const portalCancelAppointmentSchema = z.object({ reason: z.string().trim().min(1).max(500) });
+export const portalRescheduleAppointmentSchema = z.object({
+  slotId: uuidSchema,
+  reason: z.string().trim().min(1).max(500)
+});
+
+export const createBookingRuleSchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema,
+  doctorId: uuidSchema,
+  serviceId: uuidSchema,
+  chairId: uuidSchema.optional(),
+  slotIntervalMinutes: z.number().int().min(5).max(240).default(15),
+  minimumNoticeMinutes: z.number().int().min(0).max(525_600).default(120),
+  bookingHorizonDays: z.number().int().min(1).max(365).default(90),
+  active: z.boolean().default(true)
+});
+
+export const publishBookingSlotsSchema = z.object({
+  startsAt: z.array(dateTimeSchema).min(1).max(1000)
+});
+
+export const publicBookingRangeSchema = z.object({
+  from: dateTimeSchema,
+  to: dateTimeSchema,
+  serviceId: uuidSchema.optional(),
+  doctorId: uuidSchema.optional(),
+  branchId: uuidSchema.optional()
+}).refine((value) => Date.parse(value.to) > Date.parse(value.from), { message: "to must be later than from" });
+
+export const confirmPublicBookingSchema = z.object({
+  slotId: uuidSchema,
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  phone: z.string().trim().min(5).max(32),
+  email: z.email().optional(),
+  notes: optionalText(1000)
+});
+
+export const intakeFieldSchema = z.object({
+  key: z.string().trim().min(1).max(64).regex(/^[A-Za-z][A-Za-z0-9_]*$/),
+  label: z.string().trim().min(1).max(255),
+  type: z.enum(["text", "date", "boolean", "choice", "file"]),
+  required: z.boolean().default(false),
+  options: z.array(z.string().trim().min(1).max(255)).max(100).optional()
+});
+
+export const createIntakeFormSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(160),
+  fields: z.array(intakeFieldSchema).min(1).max(200)
+});
+export const intakeFormVersionSchema = createIntakeFormSchema.pick({ fields: true });
+
+export const issueIntakeSchema = z.object({
+  patientId: uuidSchema,
+  expiresInHours: z.number().int().min(1).max(720).default(72)
+});
+
+export const submitIntakeSchema = z.object({
+  answers: z.record(z.string(), z.unknown()),
+  uploads: z.array(z.object({
+    fieldKey: z.string().trim().min(1).max(64),
+    storageKey: z.string().trim().min(1).max(1024),
+    mimeType: z.string().trim().min(1).max(127)
+  })).max(20).default([])
+});
+
+export const recordOcrResultSchema = z.object({
+  provider: z.string().trim().min(1).max(64),
+  extractedData: z.record(z.string(), z.unknown()),
+  confidence: z.number().min(0).max(1).optional(),
+  rawReference: optionalText(1024)
+});
+
+export const confirmOcrResultSchema = z.object({
+  acceptedData: z.record(z.string(), z.unknown())
+});
+
+export const reviewIntakeSchema = z.object({
+  applyToPatient: z.boolean().default(false),
+  note: optionalText(1000)
+});
+
+export const createReviewDestinationSchema = z.object({
+  organizationId: uuidSchema,
+  name: z.string().trim().min(1).max(120),
+  url: z.url(),
+  active: z.boolean().default(true)
+});
+
+export const createReviewRequestSchema = z.object({
+  organizationId: uuidSchema,
+  appointmentId: uuidSchema,
+  destinationId: uuidSchema.optional(),
+  expiresInDays: z.number().int().min(1).max(90).default(14)
+});
+
+export const submitReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: optionalText(4000)
+});
+
+export type CreateMessageTemplateInput = z.infer<typeof createMessageTemplateSchema>;
+export type MessageTemplateVersionInput = z.infer<typeof messageTemplateVersionSchema>;
+export type QueueNotificationInput = z.infer<typeof queueNotificationSchema>;
+export type CreatePortalInvitationInput = z.infer<typeof createPortalInvitationSchema>;
+export type PortalRescheduleAppointmentInput = z.infer<typeof portalRescheduleAppointmentSchema>;
+export type CreateBookingRuleInput = z.infer<typeof createBookingRuleSchema>;
+export type PublishBookingSlotsInput = z.infer<typeof publishBookingSlotsSchema>;
+export type PublicBookingRangeInput = z.infer<typeof publicBookingRangeSchema>;
+export type ConfirmPublicBookingInput = z.infer<typeof confirmPublicBookingSchema>;
+export type CreateIntakeFormInput = z.infer<typeof createIntakeFormSchema>;
+export type IntakeFormVersionInput = z.infer<typeof intakeFormVersionSchema>;
+export type IssueIntakeInput = z.infer<typeof issueIntakeSchema>;
+export type SubmitIntakeInput = z.infer<typeof submitIntakeSchema>;
+export type RecordOcrResultInput = z.infer<typeof recordOcrResultSchema>;
+export type ConfirmOcrResultInput = z.infer<typeof confirmOcrResultSchema>;
+export type ReviewIntakeInput = z.infer<typeof reviewIntakeSchema>;
+export type CreateReviewDestinationInput = z.infer<typeof createReviewDestinationSchema>;
+export type CreateReviewRequestInput = z.infer<typeof createReviewRequestSchema>;
+export type SubmitReviewInput = z.infer<typeof submitReviewSchema>;
