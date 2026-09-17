@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
 import pg from "pg";
+import { createPasswordHash } from "../src/modules/identity/password.js";
 
 const databaseUrl = process.env.DATABASE_URL ?? "postgresql://dental:local-development-only@localhost:5432/dental";
 
 const slug = process.env.SEED_TENANT_SLUG ?? "demo-clinic";
 const subject = process.env.SEED_USER_SUBJECT ?? "local-owner";
+const login = (process.env.SEED_LOGIN ?? "owner").toLowerCase();
+const password = process.env.SEED_PASSWORD ?? "change-me-local";
+const passwordCredential = await createPasswordHash(password);
 const client = new pg.Client({ connectionString: databaseUrl });
 await client.connect();
 
@@ -57,6 +61,11 @@ try {
     "SELECT id FROM memberships WHERE tenant_id = $1 AND user_id = $2",
     [tenantId, userId]
   );
+  await client.query(
+    `INSERT INTO local_credentials (tenant_id,user_id,username,password_hash,password_salt)
+     VALUES ($1,$2,$3,$4,$5) ON CONFLICT (tenant_id,user_id) DO NOTHING`,
+    [tenantId,userId,login,passwordCredential.hash,passwordCredential.salt]
+  );
   const role = await client.query<{ id: string }>(
     `INSERT INTO roles (tenant_id, key, name, is_system, created_by, updated_by)
      VALUES ($1, 'owner', 'Owner', true, $2, $2)
@@ -108,7 +117,7 @@ try {
      VALUES ($1,$2,'consultation','Первичная консультация',30,$3,$3)
      ON CONFLICT (tenant_id,organization_id,code) DO NOTHING`, [tenantId,organization.rows[0]!.id,userId]);
   await client.query("COMMIT");
-  console.info(JSON.stringify({ tenantId, subject, headers: { "x-tenant-id": tenantId, "x-user-subject": subject } }, null, 2));
+  console.info(JSON.stringify({ tenantId, subject, localLogin: { tenant: slug, username: login, password } }, null, 2));
 } catch (error) {
   await client.query("ROLLBACK");
   throw error;

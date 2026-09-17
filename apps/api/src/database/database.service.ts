@@ -41,6 +41,14 @@ export class DatabaseService implements OnApplicationShutdown {
     await this.pool.query("SELECT 1");
   }
 
+  async findActiveTenantIdBySlug(slug: string): Promise<string | null> {
+    const row = (await this.pool.query<{ id: string }>(
+      "SELECT id FROM tenants WHERE slug=$1 AND status='active'",
+      [slug]
+    )).rows[0];
+    return row?.id ?? null;
+  }
+
   async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
   }

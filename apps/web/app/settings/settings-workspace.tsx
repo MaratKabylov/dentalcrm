@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useAuth } from "../auth-shell";
 
-interface Props { apiUrl:string; tenantId:string; subject:string }
 interface Item { id:string; code?:string; name?:string; [key:string]:unknown }
 type ResourceKey="organizations"|"branches"|"rooms"|"chairs"|"employees"|"service-categories"|"services"|"price-lists"|"diagnoses"|"cashboxes"|"expense-categories";
 
@@ -25,22 +25,17 @@ const archivePaths:Record<ResourceKey,string>={organizations:"organizations",bra
   employees:"employees","service-categories":"service-categories",services:"services","price-lists":"price-lists",
   diagnoses:"diagnoses",cashboxes:"cashboxes","expense-categories":"expense-categories"};
 
-export function SettingsWorkspace({apiUrl,tenantId,subject}:Props){
+export function SettingsWorkspace(){
+  const {session,request,logout}=useAuth();
   const [active,setActive]=useState<ResourceKey>("branches"); const [data,setData]=useState<Record<string,Item[]>>({});
-  const [query,setQuery]=useState(""); const [notice,setNotice]=useState(""); const [loading,setLoading]=useState(Boolean(tenantId));
+  const [query,setQuery]=useState(""); const [notice,setNotice]=useState(""); const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false); const [editing,setEditing]=useState<Item|null>(null);
-  const headers=useMemo(()=>({"content-type":"application/json","x-tenant-id":tenantId,"x-user-subject":subject}),[tenantId,subject]);
-  const request=useCallback(async<T,>(path:string,init?:RequestInit):Promise<T>=>{
-    const response=await fetch(`${apiUrl}${path}`,{...init,headers:{...headers,...init?.headers}});
-    const body=await response.json() as T & {error?:{message?:string}};
-    if(!response.ok) throw new Error(body.error?.message ?? "API request failed"); return body;
-  },[apiUrl,headers]);
   const load=useCallback(async()=>{
-    if(!tenantId)return; setLoading(true);
+    setLoading(true);
     try{const responses=await Promise.all(keys.map(async key=>[key,await request<Item[]>(`/${key}`)] as const));
       setData(Object.fromEntries(responses)); setNotice("");
     }catch(error){setNotice(message(error));}finally{setLoading(false);}
-  },[request,tenantId]);
+  },[request]);
   useEffect(()=>{void load();},[load]);
   const rows=(data[active] ?? []).filter(item=>`${item.name ?? ""} ${item.code ?? ""}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -60,12 +55,10 @@ export function SettingsWorkspace({apiUrl,tenantId,subject}:Props){
     try{await request(`/${archivePaths[active]}/${editing.id}`,{method:"PATCH",body:JSON.stringify({name:form.get("name")})});
       setEditing(null); await load(); setNotice("Название обновлено");}catch(error){setNotice(message(error));}
   }
-  if(!tenantId)return <main className="setup"><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div>
-    <h1>Нужен tenant ID</h1><p>Укажите <code>NEXT_PUBLIC_DEMO_TENANT_ID</code>, чтобы открыть справочники.</p></main>;
   return <main className="settings-shell">
     <header className="settings-header"><Link className="brand brand-link" href="/"><span className="brand-mark">D</span> Dental SaaS</Link>
-      <nav className="top-nav"><Link href="/">Расписание</Link><Link className="active" href="/settings">Настройки</Link></nav>
-      <div className="header-actions"><span className="live-dot"/> API подключён <span className="avatar">LO</span></div></header>
+      <nav className="top-nav"><Link href="/">Расписание</Link><Link className="active" href="/settings">Настройки</Link><Link href="/admin">Доступ</Link></nav>
+      <div className="header-actions"><span className="live-dot"/> {session.displayName}<button className="logout-link" onClick={()=>void logout()}>Выйти</button></div></header>
     <div className="settings-heading"><div><span className="eyebrow">Управление клиникой</span><h1>Справочники</h1><p>Единое место для структуры, команды, услуг и финансовых настроек.</p></div>
       <div className="catalog-counter"><b>{keys.reduce((sum,key)=>sum+(data[key]?.length ?? 0),0)}</b><span>активных записей</span></div></div>
     {notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="Закрыть">×</button></div>}

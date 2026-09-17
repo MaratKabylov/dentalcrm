@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useAuth } from "./auth-shell";
 
-interface Props { apiUrl: string; tenantId: string; subject: string; }
 interface Patient { id: string; firstName: string; lastName: string; phone: string; }
 interface Employee { firstName: string; lastName: string; doctorId?: string; }
 interface Chair { id: string; name: string; branchId: string; }
@@ -16,24 +16,19 @@ const nextAction: Record<string, [string, string] | undefined> = { created: ["co
   awaiting_confirmation: ["confirm", "Подтвердить"], confirmed: ["check-in", "Отметить приход"],
   checked_in: ["start", "Начать приём"], in_progress: ["complete", "Завершить"] };
 
-export function ClinicDashboard({ apiUrl, tenantId, subject }: Props) {
+export function ClinicDashboard() {
+  const {session,request,logout}=useAuth();
   const [patients, setPatients] = useState<Patient[]>([]); const [employees, setEmployees] = useState<Employee[]>([]);
   const [chairs, setChairs] = useState<Chair[]>([]); const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(Boolean(tenantId));
+  const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true);
   const doctors = employees.filter((employee) => employee.doctorId); const range = useMemo(() => weekRange(new Date()), []);
-  const headers = useMemo(() => ({ "content-type": "application/json", "x-tenant-id": tenantId, "x-user-subject": subject }), [tenantId, subject]);
-  const request = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
-    const response = await fetch(`${apiUrl}${path}`, { ...init, headers: { ...headers, ...init?.headers } });
-    const body = await response.json() as T & { error?: { message?: string } };
-    if (!response.ok) throw new Error(body.error?.message ?? "API request failed"); return body;
-  }, [apiUrl, headers]);
   const load = useCallback(async () => {
-    if (!tenantId) return; setLoading(true);
+    setLoading(true);
     try { const [p, e, c, a] = await Promise.all([request<Patient[]>("/patients"), request<Employee[]>("/employees"),
       request<Chair[]>("/chairs"), request<Appointment[]>(`/appointments?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`)]);
       setPatients(p); setEmployees(e); setChairs(c); setAppointments(a); setNotice("");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Не удалось загрузить данные"); } finally { setLoading(false); }
-  }, [range, request, tenantId]);
+  }, [range, request]);
   useEffect(() => { void load(); }, [load]);
 
   async function createPatient(event: FormEvent<HTMLFormElement>) {
@@ -54,9 +49,8 @@ export function ClinicDashboard({ apiUrl, tenantId, subject }: Props) {
     try { await request(`/appointments/${appointment.id}/${action}`, { method: "POST", body: "{}" }); await load(); }
     catch (error) { setNotice(message(error)); }
   }
-  if (!tenantId) return <Setup apiUrl={apiUrl} />;
   return <main className="app-shell">
-    <header className="app-header"><div><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><p>Clinic Core · рабочая неделя</p></div><nav className="top-nav"><Link className="active" href="/">Расписание</Link><Link href="/settings">Настройки</Link></nav><div className="header-actions"><span className="live-dot" /> API подключён <span className="avatar">LO</span></div></header>
+    <header className="app-header"><div><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><p>{session.tenantName} · рабочая неделя</p></div><nav className="top-nav"><Link className="active" href="/">Расписание</Link><Link href="/settings">Настройки</Link><Link href="/admin">Доступ</Link></nav><div className="header-actions"><span className="live-dot" /> {session.displayName}<span className="avatar">{initials(session.displayName)}</span><button className="logout-link" onClick={()=>void logout()}>Выйти</button></div></header>
     {notice && <div className="notice" role="status">{notice}</div>}
     <section className="metrics"><Metric value={appointments.length} label="Записей на неделе"/><Metric value={appointments.filter((item) => item.status === "confirmed").length} label="Подтверждено"/><Metric value={patients.length} label="Пациентов"/><Metric value={doctors.length} label="Врачей"/></section>
     <section className="workspace"><div className="calendar-panel"><div className="section-title"><div><span>Расписание</span><h1>{formatRange(range.from, range.to)}</h1></div><span className="phase">Phase 1</span></div>
@@ -74,7 +68,7 @@ export function ClinicDashboard({ apiUrl, tenantId, subject }: Props) {
       </aside></section></main>;
 }
 function Metric({value,label}:{value:number;label:string}) { return <div className="metric"><b>{value}</b><span>{label}</span></div>; }
-function Setup({apiUrl}:{apiUrl:string}) { return <main className="setup"><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><span className="phase">Phase 1 · Clinic Core</span><h1>Календарь готов к работе.</h1><p>Запустите миграцию и seed, затем укажите выданный <code>tenantId</code> в <code>NEXT_PUBLIC_DEMO_TENANT_ID</code> для web-приложения.</p><pre>{`npm run infra:up\nnpm run db:migrate\nnpm run db:seed\n# API: ${apiUrl}`}</pre></main>; }
 function weekRange(now:Date){const from=new Date(now);from.setDate(from.getDate()-((from.getDay()+6)%7));from.setHours(0,0,0,0);const to=new Date(from);to.setDate(to.getDate()+7);return{from:from.toISOString(),to:to.toISOString()};}
 function formatRange(from:string,to:string){const start=new Date(from);const end=new Date(to);end.setDate(end.getDate()-1);return `${start.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})} — ${end.toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"})}`;}
 function message(error:unknown){return error instanceof Error?error.message:"Ошибка";}
+function initials(name:string){return name.split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();}

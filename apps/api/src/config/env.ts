@@ -9,16 +9,17 @@ export const envSchema = z
     DATABASE_URL: z.url().default("postgresql://dental:local-development-only@localhost:5432/dental"),
     DB_APP_ROLE: z.string().regex(/^[a-z_][a-z0-9_]*$/).default("dental_app"),
     REDIS_URL: z.url().default("redis://localhost:6379"),
-    AUTH_MODE: z.enum(["development", "oidc"]).default("development"),
+    AUTH_MODE: z.enum(["development", "local", "oidc"]).default("local"),
     OIDC_ISSUER_URL: optionalUrl,
     OIDC_JWKS_URL: optionalUrl,
     OIDC_AUDIENCE: z.string().min(1).default("dental-api"),
     WEB_ORIGIN: z.url().default("http://localhost:3000"),
+    LOCAL_SESSION_HOURS: z.coerce.number().int().min(1).max(168).default(12),
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info")
   })
   .superRefine((env, context) => {
-    if (env.NODE_ENV === "production" && env.AUTH_MODE === "development") {
-      context.addIssue({ code: "custom", path: ["AUTH_MODE"], message: "development auth is forbidden in production" });
+    if (env.NODE_ENV === "production" && env.AUTH_MODE !== "oidc") {
+      context.addIssue({ code: "custom", path: ["AUTH_MODE"], message: "only OIDC authentication is allowed in production" });
     }
     if (env.AUTH_MODE === "oidc" && !env.OIDC_ISSUER_URL) {
       context.addIssue({ code: "custom", path: ["OIDC_ISSUER_URL"], message: "OIDC issuer is required" });

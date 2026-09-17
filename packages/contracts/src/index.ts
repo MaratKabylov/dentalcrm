@@ -1233,3 +1233,30 @@ export type AnalyticsRangeInput = z.infer<typeof analyticsRangeSchema>;
 export type CreateMarketingCampaignInput = z.infer<typeof createMarketingCampaignSchema>;
 export type RecordMarketingSpendInput = z.infer<typeof recordMarketingSpendSchema>;
 export type CreateMarketingAttributionInput = z.infer<typeof createMarketingAttributionSchema>;
+
+// Local authentication and tenant administration (non-production adapter).
+export const localLoginSchema = z.object({
+  tenant: z.string().trim().min(2).max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
+  username: z.string().trim().min(3).max(64).regex(/^[A-Za-z0-9._-]+$/),
+  password: z.string().min(8).max(128)
+});
+
+export const createAdminRoleSchema = z.object({
+  key: codeSchema,
+  name: z.string().trim().min(1).max(120),
+  permissions: z.array(z.string().trim().min(1).max(96)).max(300).default([])
+});
+
+export const updateMembershipAccessSchema = z.object({
+  status: z.enum(["active", "suspended"]).optional(),
+  roleIds: z.array(uuidSchema).min(1).max(50),
+  tenantWide: z.boolean().default(false),
+  organizationIds: z.array(uuidSchema).max(100).default([]),
+  branchIds: z.array(uuidSchema).max(500).default([])
+}).refine((value) => value.tenantWide || value.organizationIds.length > 0 || value.branchIds.length > 0, {
+  message: "At least one access scope is required"
+});
+
+export type LocalLoginInput = z.infer<typeof localLoginSchema>;
+export type CreateAdminRoleInput = z.infer<typeof createAdminRoleSchema>;
+export type UpdateMembershipAccessInput = z.infer<typeof updateMembershipAccessSchema>;

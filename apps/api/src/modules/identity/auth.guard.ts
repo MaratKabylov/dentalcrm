@@ -6,13 +6,16 @@ import { getEnv } from "../../config/env.js";
 import { IdentityRepository } from "./identity.repository.js";
 import { IS_PUBLIC } from "./public.decorator.js";
 import { TokenVerifierService, type VerifiedPrincipal } from "./token-verifier.service.js";
+import { LocalAuthService } from "./local-auth.service.js";
+import { readSessionCookie } from "./session-cookie.js";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly verifier: TokenVerifierService,
-    private readonly identity: IdentityRepository
+    private readonly identity: IdentityRepository,
+    private readonly localAuth: LocalAuthService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -38,11 +41,16 @@ export class AuthGuard implements CanActivate {
   }
 
   private async getPrincipal(request: Request): Promise<VerifiedPrincipal> {
-    if (getEnv().AUTH_MODE === "development") {
+    const mode=getEnv().AUTH_MODE;
+    if (mode === "development") {
       const tenantId = request.header("x-tenant-id");
       const subject = request.header("x-user-subject");
       if (!tenantId || !subject) throw new UnauthorizedException("Development auth headers are required");
       return { tenantId, subject };
+    }
+    if(mode==="local"){
+      const token=readSessionCookie(request.header("cookie"));if(!token)throw new UnauthorizedException("Local session is required");
+      return this.localAuth.verifySession(token);
     }
     const authorization = request.header("authorization");
     if (!authorization?.startsWith("Bearer ")) throw new UnauthorizedException("Bearer token is required");

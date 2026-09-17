@@ -15,7 +15,7 @@ Implementation of the architecture in `DENTAL_SAAS_MASTER_ARCHITECTURE.md`.
 - OpenAPI: http://localhost:4000/docs
 - MinIO console: http://localhost:9001
 
-In local `AUTH_MODE=development`, send `x-tenant-id` and `x-user-subject` headers. This mode is rejected when `NODE_ENV=production`. Production uses signed OIDC access tokens and JWKS discovery.
+Local development defaults to `AUTH_MODE=local`. After `npm run db:seed`, sign in with tenant `demo-clinic`, username `owner`, and password `change-me-local` (override with `SEED_LOGIN` and `SEED_PASSWORD`). Passwords are scrypt-hashed and the browser receives only a revocable HttpOnly session cookie. Both `local` and header-based `development` modes are rejected when `NODE_ENV=production`; production uses signed OIDC access tokens and JWKS discovery.
 
 See [Foundation](docs/architecture/foundation.md), [Tenant and organization scope](docs/architecture/organization-scope.md),
 [Clinic Core](docs/architecture/clinic-core.md), [Clinical Core](docs/architecture/clinical-core.md), [Finance](docs/architecture/finance.md),
@@ -23,4 +23,5 @@ See [Foundation](docs/architecture/foundation.md), [Tenant and organization scop
 [Inventory](docs/architecture/phase-6-inventory.md), [Compensation](docs/architecture/phase-7-compensation.md), and
 [Patient Experience](docs/architecture/phase-8-patient-experience.md),
 [Laboratory, Insurance, and Loyalty](docs/architecture/phase-9-laboratory-insurance-loyalty.md), and
-[Advanced Analytics](docs/architecture/phase-11-advanced-analytics.md) for boundaries, security assumptions, API surface, and verification commands.
+[Advanced Analytics](docs/architecture/phase-11-advanced-analytics.md) for domain boundaries. See
+[Local Authentication and Administration](docs/architecture/local-auth-administration.md) for the development login, session security, and admin panel.
