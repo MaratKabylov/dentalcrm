@@ -990,3 +990,197 @@ export type ReviewIntakeInput = z.infer<typeof reviewIntakeSchema>;
 export type CreateReviewDestinationInput = z.infer<typeof createReviewDestinationSchema>;
 export type CreateReviewRequestInput = z.infer<typeof createReviewRequestSchema>;
 export type SubmitReviewInput = z.infer<typeof submitReviewSchema>;
+
+// Phase 9 — Laboratory, Insurance, and Loyalty
+export const labCaseStatuses = ["ordered", "impression_taken", "sent", "in_production", "received", "fitted", "completed", "rework", "cancelled"] as const;
+
+export const createLaboratorySchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  phone: optionalText(32),
+  email: z.email().optional(),
+  address: optionalText(500)
+});
+
+export const createLabCaseSchema = z.object({
+  organizationId: uuidSchema,
+  laboratoryId: uuidSchema,
+  patientId: uuidSchema,
+  encounterId: uuidSchema.optional(),
+  responsibleDoctorId: uuidSchema,
+  expectedAt: dateTimeSchema.optional(),
+  notes: optionalText(4000),
+  items: z.array(z.object({
+    procedureId: uuidSchema.optional(),
+    treatmentPlanItemId: uuidSchema.optional(),
+    description: z.string().trim().min(1).max(500),
+    toothNumber: z.number().int().min(11).max(85).optional(),
+    shade: optionalText(64),
+    costMinor: z.number().int().nonnegative(),
+    currency: currencySchema.default("KZT")
+  }).refine((item) => item.procedureId !== undefined || item.treatmentPlanItemId !== undefined, {
+    message: "procedureId or treatmentPlanItemId is required"
+  })).min(1).max(100)
+});
+
+export const transitionLabCaseSchema = z.object({
+  status: z.enum(labCaseStatuses),
+  occurredAt: dateTimeSchema.optional(),
+  reason: optionalText(1000)
+});
+
+export const addLabCaseFileSchema = z.object({
+  kind: z.string().trim().min(1).max(64),
+  storageKey: z.string().trim().min(1).max(1024),
+  mimeType: z.string().trim().min(1).max(127),
+  sizeBytes: z.number().int().nonnegative(),
+  checksumSha256: z.string().regex(/^[a-f0-9]{64}$/i)
+});
+
+export const recordLabInvoiceSchema = z.object({
+  invoiceNumber: z.string().trim().min(1).max(120),
+  totalCostMinor: z.number().int().nonnegative(),
+  currency: currencySchema.default("KZT"),
+  issuedOn: z.string().date(),
+  dueOn: z.string().date().optional()
+}).refine((value) => !value.dueOn || value.dueOn >= value.issuedOn, { message: "dueOn must be on or after issuedOn", path: ["dueOn"] });
+
+export const createInsuranceCompanySchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  contact: optionalText(500)
+});
+
+export const createInsurancePlanSchema = z.object({
+  companyId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  currency: currencySchema.default("KZT")
+});
+
+export const createInsurancePriceListSchema = z.object({
+  planId: uuidSchema,
+  name: z.string().trim().min(1).max(180),
+  validFrom: z.string().date(),
+  validTo: z.string().date().optional(),
+  items: z.array(z.object({ serviceId: uuidSchema, priceMinor: z.number().int().nonnegative() })).min(1).max(1000)
+}).refine((value) => !value.validTo || value.validTo >= value.validFrom, { message: "validTo must be on or after validFrom", path: ["validTo"] });
+
+export const createPatientPolicySchema = z.object({
+  planId: uuidSchema,
+  patientId: uuidSchema,
+  policyNumber: z.string().trim().min(1).max(120),
+  validFrom: z.string().date(),
+  validTo: z.string().date().optional(),
+  coveragePercent: z.number().min(0).max(100).default(100)
+}).refine((value) => !value.validTo || value.validTo >= value.validFrom, { message: "validTo must be on or after validFrom", path: ["validTo"] });
+
+export const createInsuranceClaimSchema = z.object({
+  policyId: uuidSchema,
+  branchId: uuidSchema,
+  serviceDate: z.string().date(),
+  items: z.array(z.object({
+    procedureId: uuidSchema,
+    billedAmountMinor: z.number().int().positive()
+  })).min(1).max(200)
+});
+
+export const adjudicateInsuranceClaimSchema = z.object({
+  items: z.array(z.object({
+    claimItemId: uuidSchema,
+    approvedAmountMinor: z.number().int().nonnegative(),
+    reason: optionalText(1000)
+  })).min(1)
+});
+
+export const recordInsurancePaymentSchema = z.object({
+  amountMinor: z.number().int().positive(),
+  reference: z.string().trim().min(1).max(255),
+  paidAt: dateTimeSchema.optional(),
+  idempotencyKey: idempotencyKeySchema
+});
+
+export const createLoyaltyProgramSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  currency: currencySchema.default("KZT"),
+  earningRateBps: z.number().int().min(0).max(10_000),
+  maxRedemptionBps: z.number().int().min(0).max(10_000),
+  validFrom: z.string().date(),
+  validTo: z.string().date().optional()
+}).refine((value) => !value.validTo || value.validTo >= value.validFrom, { message: "validTo must be on or after validFrom", path: ["validTo"] });
+
+export const awardLoyaltySchema = z.object({ paymentId: uuidSchema, idempotencyKey: idempotencyKeySchema });
+export const adjustLoyaltySchema = z.object({
+  patientId: uuidSchema,
+  points: z.number().int().refine((value) => value !== 0, "points must not be zero"),
+  reason: z.string().trim().min(3).max(1000),
+  idempotencyKey: idempotencyKeySchema
+});
+export const redeemLoyaltySchema = z.object({
+  chargeId: uuidSchema,
+  points: z.number().int().positive(),
+  idempotencyKey: idempotencyKeySchema
+});
+
+export const createPromotionSchema = z.object({
+  organizationId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  discountType: z.enum(["percentage", "fixed"]),
+  discountValue: z.number().int().positive(),
+  validFrom: dateTimeSchema,
+  validTo: dateTimeSchema,
+  serviceIds: z.array(uuidSchema).max(500).default([]),
+  usageLimit: z.number().int().positive().optional()
+}).superRefine((value, context) => {
+  if (Date.parse(value.validTo) <= Date.parse(value.validFrom)) context.addIssue({ code: "custom", message: "validTo must be later than validFrom", path: ["validTo"] });
+  if (value.discountType === "percentage" && value.discountValue > 10_000) context.addIssue({ code: "custom", message: "percentage discount uses basis points and cannot exceed 10000", path: ["discountValue"] });
+});
+
+export const createCouponSchema = z.object({
+  promotionId: uuidSchema,
+  code: z.string().trim().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  patientId: uuidSchema.optional(),
+  expiresAt: dateTimeSchema.optional(),
+  maxUses: z.number().int().positive().default(1)
+});
+
+export const quotePromotionSchema = z.object({
+  organizationId: uuidSchema,
+  patientId: uuidSchema.optional(),
+  serviceId: uuidSchema.optional(),
+  couponCode: z.string().trim().min(3).max(64).optional(),
+  grossAmountMinor: z.number().int().positive(),
+  at: dateTimeSchema.optional()
+});
+
+export const redeemPromotionSchema = quotePromotionSchema.extend({
+  referenceType: z.string().trim().min(1).max(48),
+  referenceId: uuidSchema,
+  idempotencyKey: idempotencyKeySchema
+});
+
+export type CreateLaboratoryInput = z.infer<typeof createLaboratorySchema>;
+export type CreateLabCaseInput = z.infer<typeof createLabCaseSchema>;
+export type TransitionLabCaseInput = z.infer<typeof transitionLabCaseSchema>;
+export type AddLabCaseFileInput = z.infer<typeof addLabCaseFileSchema>;
+export type RecordLabInvoiceInput = z.infer<typeof recordLabInvoiceSchema>;
+export type CreateInsuranceCompanyInput = z.infer<typeof createInsuranceCompanySchema>;
+export type CreateInsurancePlanInput = z.infer<typeof createInsurancePlanSchema>;
+export type CreateInsurancePriceListInput = z.infer<typeof createInsurancePriceListSchema>;
+export type CreatePatientPolicyInput = z.infer<typeof createPatientPolicySchema>;
+export type CreateInsuranceClaimInput = z.infer<typeof createInsuranceClaimSchema>;
+export type AdjudicateInsuranceClaimInput = z.infer<typeof adjudicateInsuranceClaimSchema>;
+export type RecordInsurancePaymentInput = z.infer<typeof recordInsurancePaymentSchema>;
+export type CreateLoyaltyProgramInput = z.infer<typeof createLoyaltyProgramSchema>;
+export type AwardLoyaltyInput = z.infer<typeof awardLoyaltySchema>;
+export type AdjustLoyaltyInput = z.infer<typeof adjustLoyaltySchema>;
+export type RedeemLoyaltyInput = z.infer<typeof redeemLoyaltySchema>;
+export type CreatePromotionInput = z.infer<typeof createPromotionSchema>;
+export type CreateCouponInput = z.infer<typeof createCouponSchema>;
+export type QuotePromotionInput = z.infer<typeof quotePromotionSchema>;
+export type RedeemPromotionInput = z.infer<typeof redeemPromotionSchema>;
