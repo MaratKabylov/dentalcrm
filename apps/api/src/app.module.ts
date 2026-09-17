@@ -22,11 +22,12 @@ import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { CompensationModule } from "./modules/compensation/compensation.module.js";
 import { ExperienceModule } from "./modules/experience/experience.module.js";
 import { CommercialModule } from "./modules/commercial/commercial.module.js";
+import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
 
 @Module({
   imports: [DatabaseModule, IdentityModule, HealthModule, OrganizationsModule, ClinicModule, PatientsModule, SchedulingModule,
     ClinicalModule, TreatmentPlansModule, DocumentsModule, FinanceModule, CrmModule, TasksModule, WorkflowModule, EngagementModule, InventoryModule,
-    CompensationModule, ExperienceModule, CommercialModule],
+    CompensationModule, ExperienceModule, CommercialModule, AnalyticsModule],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard }

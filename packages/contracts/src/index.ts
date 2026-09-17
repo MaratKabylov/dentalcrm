@@ -1184,3 +1184,52 @@ export type CreatePromotionInput = z.infer<typeof createPromotionSchema>;
 export type CreateCouponInput = z.infer<typeof createCouponSchema>;
 export type QuotePromotionInput = z.infer<typeof quotePromotionSchema>;
 export type RedeemPromotionInput = z.infer<typeof redeemPromotionSchema>;
+
+// Phase 11 — Advanced Analytics
+export const analyticsRangeSchema = z.object({
+  organizationId: uuidSchema,
+  branchId: uuidSchema.optional(),
+  from: z.string().date(),
+  to: z.string().date(),
+  currency: currencySchema.default("KZT")
+}).superRefine((value, context) => {
+  const from = Date.parse(`${value.from}T00:00:00.000Z`);
+  const to = Date.parse(`${value.to}T00:00:00.000Z`);
+  if (to < from) context.addIssue({ code: "custom", message: "to must be on or after from", path: ["to"] });
+  if (to - from > 366 * 86_400_000) context.addIssue({ code: "custom", message: "analytics range cannot exceed 366 days", path: ["to"] });
+});
+
+export const createMarketingCampaignSchema = z.object({
+  organizationId: uuidSchema,
+  sourceId: uuidSchema.optional(),
+  channelId: uuidSchema.optional(),
+  code: codeSchema,
+  name: z.string().trim().min(1).max(180),
+  currency: currencySchema.default("KZT"),
+  startsOn: z.string().date(),
+  endsOn: z.string().date().optional()
+}).refine((value) => !value.endsOn || value.endsOn >= value.startsOn, {
+  message: "endsOn must be on or after startsOn", path: ["endsOn"]
+});
+
+export const recordMarketingSpendSchema = z.object({
+  branchId: uuidSchema.optional(),
+  occurredOn: z.string().date(),
+  amountMinor: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  reference: optionalText(255),
+  idempotencyKey: idempotencyKeySchema
+});
+
+export const createMarketingAttributionSchema = z.object({
+  campaignId: uuidSchema,
+  patientId: uuidSchema,
+  leadId: uuidSchema.optional(),
+  branchId: uuidSchema.optional(),
+  model: z.enum(["first_touch", "last_touch"]).default("first_touch"),
+  attributedAt: dateTimeSchema.optional()
+});
+
+export type AnalyticsRangeInput = z.infer<typeof analyticsRangeSchema>;
+export type CreateMarketingCampaignInput = z.infer<typeof createMarketingCampaignSchema>;
+export type RecordMarketingSpendInput = z.infer<typeof recordMarketingSpendSchema>;
+export type CreateMarketingAttributionInput = z.infer<typeof createMarketingAttributionSchema>;

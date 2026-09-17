@@ -21,5 +21,6 @@ See [Foundation](docs/architecture/foundation.md), [Tenant and organization scop
 [Clinic Core](docs/architecture/clinic-core.md), [Clinical Core](docs/architecture/clinical-core.md), [Finance](docs/architecture/finance.md),
 [CRM and Workflow](docs/architecture/phase-4-crm-workflow.md), [Recall and Waitlist](docs/architecture/phase-5-recall-waitlist.md),
 [Inventory](docs/architecture/phase-6-inventory.md), [Compensation](docs/architecture/phase-7-compensation.md), and
-[Patient Experience](docs/architecture/phase-8-patient-experience.md), and
-[Laboratory, Insurance, and Loyalty](docs/architecture/phase-9-laboratory-insurance-loyalty.md) for boundaries, security assumptions, API surface, and verification commands.
+[Patient Experience](docs/architecture/phase-8-patient-experience.md),
+[Laboratory, Insurance, and Loyalty](docs/architecture/phase-9-laboratory-insurance-loyalty.md), and
+[Advanced Analytics](docs/architecture/phase-11-advanced-analytics.md) for boundaries, security assumptions, API surface, and verification commands.
