@@ -5,7 +5,7 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
-import { assertOrganizationAccess } from "../identity/access-scope.js";
+import { assertOrganizationAccess, organizationScopeSql, scopeValues } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 
 export interface PlanRow { id: string; organizationId:string; patientId: string; title: string; status: string; currency: string; currentVersion: number; createdAt: Date }
@@ -14,6 +14,17 @@ const planSelect = `id,organization_id AS "organizationId",patient_id AS "patien
 @Injectable()
 export class TreatmentPlansService {
   constructor(private readonly database: DatabaseService, private readonly audit: AuditService, private readonly outbox: OutboxService) {}
+
+  list(auth: AuthContext, patientId: string) {
+    return this.database.withTenant(auth, async (client) => {
+      const patient=await client.query(`SELECT 1 FROM patients WHERE id=$1 AND archived_at IS NULL`,[patientId]);
+      if(!patient.rows[0])throw new ApiException(HttpStatus.NOT_FOUND,"PATIENT_NOT_FOUND","Patient not found");
+      const scoped=auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:{sql:organizationScopeSql("p",2,3),values:scopeValues(auth)};
+      const ids=(await client.query<{id:string}>(`SELECT p.id FROM treatment_plans p WHERE p.patient_id=$1 AND ${scoped.sql}
+        ORDER BY p.created_at DESC`,[patientId,...scoped.values])).rows;
+      return Promise.all(ids.map(({id})=>this.aggregate(client,id)));
+    });
+  }
 
   create(auth: AuthContext, input: CreateTreatmentPlanInput) {
     return this.database.withTenant(auth, async (client) => {
@@ -93,9 +104,11 @@ export class TreatmentPlansService {
 
   private async aggregate(client: PoolClient, id: string) {
     const plan = await this.find(client, id);
-    const items = (await client.query(`SELECT id,service_id AS "serviceId",doctor_id AS "doctorId",tooth_number AS "toothNumber",
-      quantity,list_price_minor::int AS "listPriceMinor",discount_minor::int AS "discountMinor",final_price_minor::int AS "finalPriceMinor",
-      status,position FROM treatment_plan_items WHERE treatment_plan_id=$1 ORDER BY position`, [id])).rows;
+    const items = (await client.query(`SELECT i.id,i.service_id AS "serviceId",s.name AS "serviceName",i.doctor_id AS "doctorId",
+      concat_ws(' ',e.last_name,e.first_name) AS "doctorName",i.tooth_number AS "toothNumber",i.quantity,
+      i.list_price_minor::int AS "listPriceMinor",i.discount_minor::int AS "discountMinor",i.final_price_minor::int AS "finalPriceMinor",
+      i.status,i.position FROM treatment_plan_items i JOIN services s ON s.id=i.service_id LEFT JOIN doctors d ON d.id=i.doctor_id
+      LEFT JOIN employees e ON e.id=d.employee_id WHERE i.treatment_plan_id=$1 ORDER BY i.position`, [id])).rows;
     const totals = items.reduce((result, item) => {
       const value = Number(item.finalPriceMinor);
       result.proposedAmountMinor += value;

@@ -1,5 +1,5 @@
 import { acceptTreatmentPlanSchema, createTreatmentPlanSchema, uuidSchema } from "@dental/contracts";
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { parseSchema } from "../../common/http/parse-schema.js";
 import type { AuthContext } from "../identity/auth-context.js";
@@ -10,6 +10,11 @@ import { TreatmentPlansService } from "./treatment-plans.service.js";
 @ApiTags("treatment-plans") @ApiBearerAuth() @Controller("treatment-plans")
 export class TreatmentPlansController {
   constructor(private readonly plans: TreatmentPlansService) {}
+
+  @Get() @RequirePermissions("treatment_plans.read")
+  list(@CurrentAuth() auth: AuthContext, @Query("patientId") patientId: string) {
+    return this.plans.list(auth, parseSchema(uuidSchema, patientId));
+  }
 
   @Post() @RequirePermissions("treatment_plans.manage")
   create(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {

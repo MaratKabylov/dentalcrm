@@ -30,7 +30,7 @@ export class ClinicalService {
     return this.database.withTenant(auth, async (client) => {
       const scoped=auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:{sql:branchScopeSql("b",3,4),values:scopeValues(auth)};
       return (await client.query(`SELECT e.id,e.appointment_id AS "appointmentId",e.patient_id AS "patientId",
-        e.doctor_id AS "doctorId",e.branch_id AS "branchId",e.status,e.started_at AS "startedAt",e.completed_at AS "completedAt",
+        e.doctor_id AS "doctorId",e.branch_id AS "branchId",b.organization_id AS "organizationId",e.status,e.started_at AS "startedAt",e.completed_at AS "completedAt",
         concat_ws(' ',p.last_name,p.first_name) AS "patientName",
         concat_ws(' ',em.last_name,em.first_name) AS "doctorName",
         a.status AS "appointmentStatus",a.reason,c.name AS "chairName",
@@ -76,7 +76,8 @@ export class ClinicalService {
     return this.database.withTenant(auth, async (client) => {
       const encounter = await this.findEncounter(client, id);
       await assertBranchAccess(client,auth,encounter.branchId);
-      const [notes, diagnoses, procedures] = await Promise.all([
+      const [scope,notes, diagnoses, procedures] = await Promise.all([
+        client.query<{organizationId:string}>(`SELECT organization_id AS "organizationId" FROM branches WHERE id=$1`,[encounter.branchId]),
         client.query(`SELECT n.id,n.encounter_id AS "encounterId",n.patient_id AS "patientId",n.doctor_id AS "doctorId",
           COALESCE(v.title,n.title) AS title,COALESCE(v.content,n.content) AS content,n.status,
           n.current_version AS "currentVersion",n.signed_at AS "signedAt" FROM clinical_notes n
@@ -85,10 +86,11 @@ export class ClinicalService {
         client.query(`SELECT ed.id, d.code, d.name, ed.kind, ed.tooth_number AS "toothNumber", ed.recorded_at AS "recordedAt"
           FROM encounter_diagnoses ed JOIN diagnoses d ON d.tenant_id=ed.tenant_id AND d.id=ed.diagnosis_id
           WHERE ed.encounter_id=$1 ORDER BY ed.recorded_at`, [id]),
-        client.query(`SELECT id, service_id AS "serviceId", doctor_id AS "doctorId", tooth_number AS "toothNumber",
-          quantity, status, notes, completed_at AS "completedAt" FROM procedures WHERE encounter_id=$1 ORDER BY created_at`, [id])
+        client.query(`SELECT p.id,p.service_id AS "serviceId",s.name AS "serviceName",p.doctor_id AS "doctorId",p.tooth_number AS "toothNumber",
+          p.quantity,p.status,p.notes,p.completed_at AS "completedAt" FROM procedures p JOIN services s ON s.id=p.service_id
+          WHERE p.encounter_id=$1 ORDER BY p.created_at`, [id])
       ]);
-      return { ...encounter, notes: notes.rows, diagnoses: diagnoses.rows, procedures: procedures.rows };
+      return { ...encounter, organizationId:scope.rows[0]!.organizationId, notes: notes.rows, diagnoses: diagnoses.rows, procedures: procedures.rows };
     });
   }
 
