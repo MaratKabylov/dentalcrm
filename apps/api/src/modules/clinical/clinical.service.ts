@@ -8,7 +8,7 @@ import { ApiException } from "../../common/http/api.exception.js";
 import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
-import { assertBranchAccess } from "../identity/access-scope.js";
+import { assertBranchAccess, branchScopeSql, scopeValues } from "../identity/access-scope.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 
 export interface EncounterRow { id: string; appointmentId: string | null; patientId: string; doctorId: string; branchId: string; status: string; startedAt: Date; completedAt: Date | null }
@@ -23,17 +23,45 @@ const noteSelect = `id, encounter_id AS "encounterId", patient_id AS "patientId"
 export class ClinicalService {
   constructor(private readonly database: DatabaseService, private readonly audit: AuditService, private readonly outbox: OutboxService) {}
 
+  listEncounters(auth: AuthContext, from: string, to: string) {
+    if (Date.parse(to) - Date.parse(from) > 1000 * 60 * 60 * 24 * 62) {
+      throw new ApiException(HttpStatus.BAD_REQUEST, "ENCOUNTER_RANGE_TOO_LARGE", "Encounter range cannot exceed 62 days");
+    }
+    return this.database.withTenant(auth, async (client) => {
+      const scoped=auth.tenantWide?{sql:"TRUE",values:[] as unknown[]}:{sql:branchScopeSql("b",3,4),values:scopeValues(auth)};
+      return (await client.query(`SELECT e.id,e.appointment_id AS "appointmentId",e.patient_id AS "patientId",
+        e.doctor_id AS "doctorId",e.branch_id AS "branchId",e.status,e.started_at AS "startedAt",e.completed_at AS "completedAt",
+        concat_ws(' ',p.last_name,p.first_name) AS "patientName",
+        concat_ws(' ',em.last_name,em.first_name) AS "doctorName",
+        a.status AS "appointmentStatus",a.reason,c.name AS "chairName",
+        (SELECT count(*)::int FROM clinical_notes n WHERE n.encounter_id=e.id) AS "notesCount",
+        (SELECT count(*)::int FROM encounter_diagnoses d WHERE d.encounter_id=e.id) AS "diagnosesCount",
+        (SELECT count(*)::int FROM procedures pr WHERE pr.encounter_id=e.id) AS "proceduresCount"
+        FROM encounters e
+        JOIN patients p ON p.tenant_id=e.tenant_id AND p.id=e.patient_id
+        JOIN doctors d ON d.tenant_id=e.tenant_id AND d.id=e.doctor_id
+        JOIN employees em ON em.tenant_id=d.tenant_id AND em.id=d.employee_id
+        JOIN branches b ON b.id=e.branch_id
+        LEFT JOIN appointments a ON a.tenant_id=e.tenant_id AND a.id=e.appointment_id
+        LEFT JOIN chairs c ON c.tenant_id=a.tenant_id AND c.id=a.chair_id
+        WHERE e.started_at >= $1 AND e.started_at < $2 AND ${scoped.sql}
+        ORDER BY e.started_at`,[from,to,...scoped.values])).rows;
+    });
+  }
+
   createEncounter(auth: AuthContext, input: CreateEncounterInput) {
     return this.database.withTenant(auth, async (client) => {
       await assertBranchAccess(client,auth,input.branchId);
       if (input.appointmentId) {
         const appointment = (await client.query<{ patientId: string; doctorId: string; branchId: string }>(
-          `SELECT patient_id AS "patientId", doctor_id AS "doctorId", branch_id AS "branchId" FROM appointments WHERE id=$1`,
+          `SELECT patient_id AS "patientId", doctor_id AS "doctorId", branch_id AS "branchId" FROM appointments WHERE id=$1 FOR UPDATE`,
           [input.appointmentId])).rows[0];
         if (!appointment) throw new ApiException(HttpStatus.NOT_FOUND, "APPOINTMENT_NOT_FOUND", "Appointment not found");
         if (appointment.patientId !== input.patientId || appointment.doctorId !== input.doctorId || appointment.branchId !== input.branchId) {
           throw new ApiException(HttpStatus.CONFLICT, "ENCOUNTER_APPOINTMENT_MISMATCH", "Encounter does not match the appointment");
         }
+        const existing=(await client.query<EncounterRow>(`SELECT ${encounterSelect} FROM encounters WHERE appointment_id=$1 ORDER BY created_at LIMIT 1`,[input.appointmentId])).rows[0];
+        if(existing)return existing;
       }
       const encounter = (await client.query<EncounterRow>(`INSERT INTO encounters
         (tenant_id, appointment_id, patient_id, doctor_id, branch_id, started_at, created_by, updated_by)

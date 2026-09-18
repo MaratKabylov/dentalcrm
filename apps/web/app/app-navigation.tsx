@@ -2,38 +2,40 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect,useState, type ReactNode } from "react";
 
 interface ShellSession { displayName:string; tenantName:string; permissions:string[] }
 
 const sections=[
   {label:"Работа",items:[
-    {href:"/",label:"Расписание",icon:"CAL"},
-    {href:"/patients",label:"Пациенты",icon:"PAT"},
-    {href:"/workspace/treatment",label:"Лечение",icon:"MED"},
-    {href:"/workspace/tasks",label:"Задачи",icon:"TSK"}
+    {href:"/",label:"Расписание",icon:"CAL",permission:"appointments.read"},
+    {href:"/patients",label:"Пациенты",icon:"PAT",permission:"patients.read"},
+    {href:"/workspace/treatment",label:"Лечение",icon:"MED",permission:"clinical.read"},
+    {href:"/workspace/tasks",label:"Задачи",icon:"TSK",permission:"tasks.read"}
   ]},
   {label:"Бизнес",items:[
-    {href:"/workspace/crm",label:"CRM",icon:"CRM"},
-    {href:"/workspace/finance",label:"Финансы",icon:"FIN"},
-    {href:"/workspace/inventory",label:"Склад",icon:"INV"},
-    {href:"/workspace/analytics",label:"Аналитика",icon:"ANA"}
+    {href:"/workspace/crm",label:"CRM",icon:"CRM",permission:"crm.read"},
+    {href:"/workspace/finance",label:"Финансы",icon:"FIN",permission:"finance.read"},
+    {href:"/workspace/inventory",label:"Склад",icon:"INV",permission:"inventory.read"},
+    {href:"/workspace/analytics",label:"Аналитика",icon:"ANA",permission:"analytics.read"}
   ]},
   {label:"Управление",items:[
-    {href:"/settings",label:"Справочники",icon:"SET"},
+    {href:"/settings",label:"Справочники",icon:"SET",permission:"settings.manage"},
     {href:"/admin",label:"Доступ",icon:"ADM",permission:"settings.manage"}
   ]}
 ] as const;
 
 export function AppNavigation({session,logout,children}:{session:ShellSession;logout:()=>Promise<void>;children:ReactNode}){
   const pathname=usePathname();const [open,setOpen]=useState(false);
+  useEffect(()=>{setOpen(false);},[pathname]);
+  useEffect(()=>{if(!open)return;const close=(event:KeyboardEvent)=>{if(event.key==="Escape")setOpen(false);};document.addEventListener("keydown",close);return()=>document.removeEventListener("keydown",close);},[open]);
   return <div className="product-shell">
     <aside className={`product-sidebar ${open?"open":""}`}>
       <div className="sidebar-brand"><Link href="/" onClick={()=>setOpen(false)}><span className="brand-mark">D</span><span><b>Dental</b><small>Управление клиникой</small></span></Link><button onClick={()=>setOpen(false)} aria-label="Закрыть меню">×</button></div>
       <div className="clinic-switcher"><span className="clinic-avatar">К</span><div><small>Рабочее пространство</small><b>{session.tenantName}</b></div><span>⌄</span></div>
-      <nav className="sidebar-nav">{sections.map(section=><section key={section.label}><span>{section.label}</span>{section.items.filter(item=>!("permission" in item)||session.permissions.includes(item.permission)).map(item=>{
-        const active=item.href==="/"?pathname===item.href:pathname.startsWith(item.href);return <Link key={item.href} href={item.href} className={active?"active":""} onClick={()=>setOpen(false)}><i>{item.icon}</i>{item.label}</Link>;
-      })}</section>)}</nav>
+      <nav className="sidebar-nav" aria-label="Основная навигация">{sections.map(section=>{const items=section.items.filter(item=>session.permissions.includes(item.permission));return items.length>0&&<section key={section.label}><span>{section.label}</span>{items.map(item=>{
+        const active=item.href==="/"?pathname===item.href:pathname===item.href||pathname.startsWith(`${item.href}/`);return <Link key={item.href} href={item.href} className={active?"active":""} aria-current={active?"page":undefined} onClick={()=>setOpen(false)}><i aria-hidden="true">{item.icon}</i>{item.label}</Link>;
+      })}</section>})}</nav>
       <div className="sidebar-user"><span className="member-avatar">{initials(session.displayName)}</span><div><b>{session.displayName}</b><small>В системе</small></div><button onClick={()=>void logout()} title="Выйти" aria-label="Выйти">↪</button></div>
     </aside>
     {open&&<button className="sidebar-scrim" aria-label="Закрыть меню" onClick={()=>setOpen(false)}/>}

@@ -1,8 +1,8 @@
 import {
   amendClinicalNoteSchema, completeProcedureSchema, createClinicalNoteSchema, createDiagnosisSchema,
-  createEncounterSchema, createProcedureSchema, setOdontogramEntrySchema, updateClinicalNoteSchema, uuidSchema
+  createEncounterSchema, createProcedureSchema, appointmentRangeSchema, setOdontogramEntrySchema, updateClinicalNoteSchema, uuidSchema
 } from "@dental/contracts";
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { parseSchema } from "../../common/http/parse-schema.js";
 import type { AuthContext } from "../identity/auth-context.js";
@@ -13,6 +13,12 @@ import { ClinicalService } from "./clinical.service.js";
 @ApiTags("clinical") @ApiBearerAuth() @Controller()
 export class ClinicalController {
   constructor(private readonly clinical: ClinicalService) {}
+
+  @Get("encounters") @RequirePermissions("clinical.read")
+  listEncounters(@CurrentAuth() auth: AuthContext, @Query("from") from: string, @Query("to") to: string) {
+    const range = parseSchema(appointmentRangeSchema, { from, to });
+    return this.clinical.listEncounters(auth, range.from, range.to);
+  }
 
   @Post("encounters") @RequirePermissions("clinical.write")
   createEncounter(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {
