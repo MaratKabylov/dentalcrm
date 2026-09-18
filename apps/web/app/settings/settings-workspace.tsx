@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../auth-shell";
 
@@ -26,7 +25,7 @@ const archivePaths:Record<ResourceKey,string>={organizations:"organizations",bra
   diagnoses:"diagnoses",cashboxes:"cashboxes","expense-categories":"expense-categories"};
 
 export function SettingsWorkspace(){
-  const {session,request,logout}=useAuth();
+  const {request}=useAuth();
   const [active,setActive]=useState<ResourceKey>("branches"); const [data,setData]=useState<Record<string,Item[]>>({});
   const [query,setQuery]=useState(""); const [notice,setNotice]=useState(""); const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false); const [editing,setEditing]=useState<Item|null>(null);
@@ -56,9 +55,6 @@ export function SettingsWorkspace(){
       setEditing(null); await load(); setNotice("Название обновлено");}catch(error){setNotice(message(error));}
   }
   return <main className="settings-shell">
-    <header className="settings-header"><Link className="brand brand-link" href="/"><span className="brand-mark">D</span> Dental SaaS</Link>
-      <nav className="top-nav"><Link href="/">Расписание</Link><Link className="active" href="/settings">Настройки</Link><Link href="/admin">Доступ</Link></nav>
-      <div className="header-actions"><span className="live-dot"/> {session.displayName}<button className="logout-link" onClick={()=>void logout()}>Выйти</button></div></header>
     <div className="settings-heading"><div><span className="eyebrow">Управление клиникой</span><h1>Справочники</h1><p>Единое место для структуры, команды, услуг и финансовых настроек.</p></div>
       <div className="catalog-counter"><b>{keys.reduce((sum,key)=>sum+(data[key]?.length ?? 0),0)}</b><span>активных записей</span></div></div>
     {notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="Закрыть">×</button></div>}

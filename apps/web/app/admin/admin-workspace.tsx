@@ -11,16 +11,13 @@ interface Named {id:string;name:string;organizationId?:string}
 interface Permission {key:string;description:string}
 interface AccessData {memberships:Membership[];roles:Role[];permissions:Permission[];organizations:Named[];branches:Named[]}
 
-export function AdminWorkspace(){const {session,request,logout}=useAuth();const [data,setData]=useState<AccessData|null>(null);
+export function AdminWorkspace(){const {session,request}=useAuth();const [data,setData]=useState<AccessData|null>(null);
   const [notice,setNotice]=useState("");const [loading,setLoading]=useState(true);
   const load=useCallback(async()=>{setLoading(true);try{setData(await request<AccessData>("/admin/access"));setNotice("");}
     catch(reason){setNotice(message(reason));}finally{setLoading(false);}},[request]);useEffect(()=>{void load();},[load]);
   if(!session.permissions.includes("settings.manage"))return <main className="setup"><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div>
     <h1>Нет доступа</h1><p>Для управления пользователями требуется разрешение <code>settings.manage</code>.</p><Link href="/">Вернуться</Link></main>;
-  return <main className="admin-shell"><header className="settings-header"><Link className="brand brand-link" href="/"><span className="brand-mark">D</span> Dental SaaS</Link>
-    <nav className="top-nav"><Link href="/">Расписание</Link><Link href="/settings">Настройки</Link><Link className="active" href="/admin">Доступ</Link></nav>
-    <div className="header-actions"><span className="live-dot"/>{session.displayName}<button className="logout-link" onClick={()=>void logout()}>Выйти</button></div></header>
-    <section className="admin-heading"><div><span className="eyebrow">Администрирование</span><h1>Команда и доступ</h1>
+  return <main className="admin-shell"><section className="admin-heading"><div><span className="eyebrow">Администрирование</span><h1>Команда и доступ</h1>
       <p>Роли и область доступа проверяются API при каждом запросе.</p></div>{data&&<div className="catalog-counter"><b>{data.memberships.length}</b><span>пользователей</span></div>}</section>
     {notice&&<div className="notice" role="status">{notice}</div>}
     {loading||!data?<div className="admin-loading">Загружаем настройки доступа…</div>:<div className="admin-grid"><section className="admin-members">

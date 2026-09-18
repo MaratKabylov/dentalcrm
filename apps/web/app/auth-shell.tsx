@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext,useCallback,useContext,useEffect,useState,type FormEvent,type ReactNode } from "react";
+import { AppNavigation } from "./app-navigation";
 
 export interface Session {tenantId:string;userId:string;membershipId:string;displayName:string;email:string|null;tenantName:string;tenantSlug:string;
   permissions:string[];access:{tenantWide:boolean;organizationIds:string[];branchIds:string[]}}
@@ -21,7 +22,7 @@ export function AuthShell({apiUrl,children}:{apiUrl:string;children:ReactNode}){
   const logout=useCallback(async()=>{try{await raw("/auth/logout",{method:"POST",body:"{}"});}finally{setSession(null);}},[raw]);
   if(session===undefined)return <main className="auth-loading"><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><p>Проверяем сессию…</p></main>;
   if(!session)return <Login apiUrl={apiUrl} error={error} onSuccess={refresh}/>;
-  return <AuthContext.Provider value={{session,request,logout}}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{session,request,logout}}><AppNavigation session={session} logout={logout}>{children}</AppNavigation></AuthContext.Provider>;
 }
 
 export function useAuth(){const value=useContext(AuthContext);if(!value)throw new Error("Authentication context is unavailable");return value;}

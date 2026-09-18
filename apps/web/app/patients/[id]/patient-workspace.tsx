@@ -1,0 +1,50 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback,useEffect,useState,type FormEvent } from "react";
+import { useAuth } from "../../auth-shell";
+
+interface Patient {id:string;firstName:string;lastName:string;middleName?:string;birthDate?:string;sex:"female"|"male"|"unknown";phone:string;email?:string;notes?:string;createdAt:string}
+interface Balance {patientId:string;balances:{currency:string;balanceMinor:number}[]}
+interface LedgerRow {id:string;amountMinor:number;memo?:string;description?:string;currency:string;postedAt:string;transactionType?:string}
+interface Deposit {id:string;currency:string;originalAmountMinor:number;availableAmountMinor:number;createdAt:string}
+interface Odontogram {entries:{id:string;toothNumber:number;surface:string;conditionCode:string;status:string;observedAt:string}[];history:unknown[]}
+type Tab="overview"|"clinical"|"finance";
+
+export function PatientWorkspace({patientId}:{patientId:string}){const {session,request}=useAuth();const [patient,setPatient]=useState<Patient|null>(null);const [balance,setBalance]=useState<Balance|null>(null);
+  const [ledger,setLedger]=useState<LedgerRow[]>([]);const [deposits,setDeposits]=useState<Deposit[]>([]);const [odontogram,setOdontogram]=useState<Odontogram|null>(null);
+  const [tab,setTab]=useState<Tab>("overview");const [editing,setEditing]=useState(false);const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [notice,setNotice]=useState("");
+  const canFinance=session.permissions.includes("finance.read"),canClinical=session.permissions.includes("clinical.read");
+  const load=useCallback(async()=>{setLoading(true);try{const main=await request<Patient>(`/patients/${patientId}`);setPatient(main);
+      if(canFinance){const [nextBalance,nextLedger,nextDeposits]=await Promise.all([request<Balance>(`/patients/${patientId}/balance`),request<LedgerRow[]>(`/patients/${patientId}/ledger`),request<Deposit[]>(`/patients/${patientId}/deposits`)]);setBalance(nextBalance);setLedger(nextLedger);setDeposits(nextDeposits);}
+      if(canClinical)setOdontogram(await request<Odontogram>(`/patients/${patientId}/odontogram`));setNotice("");}catch(error){setNotice(message(error));}finally{setLoading(false);}},[canClinical,canFinance,patientId,request]);
+  useEffect(()=>{void load();},[load]);
+  async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!patient)return;const form=new FormData(event.currentTarget);const optional=(name:string)=>String(form.get(name)??"").trim()||undefined;setSaving(true);
+    try{const updated=await request<Patient>(`/patients/${patient.id}`,{method:"PATCH",body:JSON.stringify({lastName:String(form.get("lastName")),firstName:String(form.get("firstName")),middleName:optional("middleName"),birthDate:optional("birthDate"),sex:String(form.get("sex")),phone:String(form.get("phone")),email:optional("email"),notes:optional("notes")})});setPatient(updated);setEditing(false);setNotice("Карточка пациента обновлена");}catch(error){setNotice(message(error));}finally{setSaving(false);}}
+  if(loading&&!patient)return <main className="data-page"><div className="data-empty tall">Загружаем карточку пациента…</div></main>;
+  if(!patient)return <main className="data-page"><div className="data-empty tall"><b>Карточка недоступна</b><span>{notice||"Пациент не найден"}</span><Link href="/patients">Вернуться к списку</Link></div></main>;
+  const name=`${patient.lastName} ${patient.firstName}${patient.middleName?` ${patient.middleName}`:""}`;
+  return <main className="data-page"><div className="patient-breadcrumb"><Link href="/patients">Пациенты</Link><span>›</span><span>{name}</span></div>
+    <section className="patient-hero"><div className="patient-hero-avatar">{initials(patient)}</div><div><span className="eyebrow">Карточка пациента</span><h1>{name}</h1><p>{patient.phone}{patient.email?` · ${patient.email}`:""}</p></div>{session.permissions.includes("patients.update")&&<button className="secondary" onClick={()=>setEditing(true)}>Изменить данные</button>}</section>
+    {notice&&<div className="notice" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="Закрыть">×</button></div>}
+    <nav className="patient-tabs"><button className={tab==="overview"?"active":""} onClick={()=>setTab("overview")}>Обзор</button><button className={tab==="clinical"?"active":""} onClick={()=>setTab("clinical")}>Лечение</button><button className={tab==="finance"?"active":""} onClick={()=>setTab("finance")}>Финансы</button></nav>
+    {tab==="overview"&&<div className="patient-detail-grid"><section className="detail-card"><div className="detail-card-title"><span>Основные данные</span><small>ID {patient.id.slice(0,8)}</small></div><dl><Info label="ФИО" value={name}/><Info label="Дата рождения" value={patient.birthDate?formatDate(patient.birthDate):"Не указана"}/><Info label="Пол" value={sexLabel(patient.sex)}/><Info label="Дата регистрации" value={formatDate(patient.createdAt)}/></dl></section>
+      <section className="detail-card"><div className="detail-card-title"><span>Контакты</span></div><dl><Info label="Телефон" value={patient.phone}/><Info label="Email" value={patient.email||"Не указан"}/></dl></section>
+      <section className="detail-card wide"><div className="detail-card-title"><span>Заметки</span></div><p className={patient.notes?"patient-notes":"patient-notes muted"}>{patient.notes||"Заметок о пациенте пока нет."}</p></section></div>}
+    {tab==="clinical"&&<div className="patient-detail-grid">{!canClinical?<AccessCard text="Нет разрешения на просмотр клинических данных."/>:<><section className="detail-card stat-card"><span>Записей в одонтограмме</span><b>{odontogram?.entries.length??0}</b><small>Актуальное состояние зубов</small></section><section className="detail-card stat-card"><span>Изменений</span><b>{odontogram?.history.length??0}</b><small>История наблюдений</small></section><section className="detail-card wide"><div className="detail-card-title"><span>Одонтограмма</span></div>{odontogram?.entries.length?<div className="odontogram-list">{odontogram.entries.map(entry=><article key={entry.id}><b>{entry.toothNumber}</b><span>{entry.conditionCode}</span><small>{entry.surface} · {entry.status}</small></article>)}</div>:<div className="inline-empty">Клинические отметки ещё не добавлены.</div>}</section></>}</div>}
+    {tab==="finance"&&<div className="patient-detail-grid">{!canFinance?<AccessCard text="Нет разрешения на просмотр финансов пациента."/>:<><section className="detail-card stat-card"><span>Задолженность</span><b>{balance?.balances.length?balance.balances.map(item=>money(item.balanceMinor,item.currency)).join(" · "):"0 ₸"}</b><small>По лицевому счёту</small></section><section className="detail-card stat-card"><span>Депозиты</span><b>{deposits.length}</b><small>{deposits.length?deposits.map(item=>money(item.availableAmountMinor,item.currency)).join(" · "):"Нет доступных депозитов"}</small></section><section className="detail-card wide"><div className="detail-card-title"><span>Операции</span><small>{ledger.length}</small></div>{ledger.length?<div className="ledger-list">{ledger.slice().reverse().map(row=><article key={row.id}><span><b>{row.description||row.memo||"Финансовая операция"}</b><small>{formatDate(row.postedAt)}</small></span><strong className={row.amountMinor<0?"negative":""}>{money(row.amountMinor,row.currency)}</strong></article>)}</div>:<div className="inline-empty">Финансовых операций пока нет.</div>}</section></>}</div>}
+    {editing&&<div className="modal-backdrop" onMouseDown={()=>setEditing(false)}><form className="patient-form-modal" onSubmit={save} onMouseDown={event=>event.stopPropagation()}><div className="modal-heading"><div><span className="eyebrow">Карточка пациента</span><h2>Изменить данные</h2></div><button type="button" onClick={()=>setEditing(false)}>×</button></div>
+      <div className="patient-form-grid"><Field name="lastName" label="Фамилия" defaultValue={patient.lastName}/><Field name="firstName" label="Имя" defaultValue={patient.firstName}/><Field name="middleName" label="Отчество" defaultValue={patient.middleName} optional/><Field name="birthDate" label="Дата рождения" type="date" defaultValue={patient.birthDate} optional/>
+        <label>Пол<select name="sex" defaultValue={patient.sex}><option value="unknown">Не указан</option><option value="female">Женский</option><option value="male">Мужской</option></select></label><Field name="phone" label="Телефон" type="tel" defaultValue={patient.phone}/><Field name="email" label="Email" type="email" defaultValue={patient.email} optional/><label className="wide">Заметки <small>необязательно</small><textarea name="notes" rows={4} defaultValue={patient.notes}/></label></div>
+      <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setEditing(false)}>Отмена</button><button className="primary" disabled={saving}>{saving?"Сохраняем…":"Сохранить"}</button></div></form></div>}
+  </main>;
+}
+
+function Field({name,label,type="text",optional=false,defaultValue}:{name:string;label:string;type?:string;optional?:boolean;defaultValue?:string|undefined}){return <label>{label}{optional&&<small>необязательно</small>}<input name={name} type={type} defaultValue={defaultValue} required={!optional}/></label>}
+function Info({label,value}:{label:string;value:string}){return <div><dt>{label}</dt><dd>{value}</dd></div>}
+function AccessCard({text}:{text:string}){return <section className="detail-card wide"><div className="inline-empty">{text}</div></section>}
+function initials(patient:Patient){return `${patient.lastName[0]??""}${patient.firstName[0]??""}`.toUpperCase()}
+function sexLabel(value:Patient["sex"]){return value==="female"?"Женский":value==="male"?"Мужской":"Не указан"}
+function formatDate(value:string){return new Date(value).toLocaleDateString("ru-RU")}
+function money(value:number,currency:string){return new Intl.NumberFormat("ru-RU",{style:"currency",currency,maximumFractionDigits:0}).format(value/100)}
+function message(error:unknown){return error instanceof Error?error.message:"Не удалось загрузить данные"}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useAuth } from "./auth-shell";
 
 interface Patient { id: string; firstName: string; lastName: string; phone: string; }
@@ -17,7 +16,7 @@ const nextAction: Record<string, [string, string] | undefined> = { created: ["co
   checked_in: ["start", "Начать приём"], in_progress: ["complete", "Завершить"] };
 
 export function ClinicDashboard() {
-  const {session,request,logout}=useAuth();
+  const {request}=useAuth();
   const [patients, setPatients] = useState<Patient[]>([]); const [employees, setEmployees] = useState<Employee[]>([]);
   const [chairs, setChairs] = useState<Chair[]>([]); const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true);
@@ -50,7 +49,7 @@ export function ClinicDashboard() {
     catch (error) { setNotice(message(error)); }
   }
   return <main className="app-shell">
-    <header className="app-header"><div><div className="brand"><span className="brand-mark">D</span> Dental SaaS</div><p>{session.tenantName} · рабочая неделя</p></div><nav className="top-nav"><Link className="active" href="/">Расписание</Link><Link href="/settings">Настройки</Link><Link href="/admin">Доступ</Link></nav><div className="header-actions"><span className="live-dot" /> {session.displayName}<span className="avatar">{initials(session.displayName)}</span><button className="logout-link" onClick={()=>void logout()}>Выйти</button></div></header>
+    <div className="page-heading"><div><span className="eyebrow">Рабочая неделя</span><h1>Расписание</h1><p>Записи пациентов и загрузка клиники.</p></div></div>
     {notice && <div className="notice" role="status">{notice}</div>}
     <section className="metrics"><Metric value={appointments.length} label="Записей на неделе"/><Metric value={appointments.filter((item) => item.status === "confirmed").length} label="Подтверждено"/><Metric value={patients.length} label="Пациентов"/><Metric value={doctors.length} label="Врачей"/></section>
     <section className="workspace"><div className="calendar-panel"><div className="section-title"><div><span>Расписание</span><h1>{formatRange(range.from, range.to)}</h1></div><span className="phase">Phase 1</span></div>
@@ -71,4 +70,3 @@ function Metric({value,label}:{value:number;label:string}) { return <div classNa
 function weekRange(now:Date){const from=new Date(now);from.setDate(from.getDate()-((from.getDay()+6)%7));from.setHours(0,0,0,0);const to=new Date(from);to.setDate(to.getDate()+7);return{from:from.toISOString(),to:to.toISOString()};}
 function formatRange(from:string,to:string){const start=new Date(from);const end=new Date(to);end.setDate(end.getDate()-1);return `${start.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})} — ${end.toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"})}`;}
 function message(error:unknown){return error instanceof Error?error.message:"Ошибка";}
-function initials(name:string){return name.split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();}
