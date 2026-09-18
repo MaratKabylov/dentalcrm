@@ -274,10 +274,13 @@ export class FinanceService {
   }
 
   listCashboxes(auth:AuthContext){return this.database.withTenant(auth,async(client)=>(await client.query(`SELECT c.id,c.branch_id AS "branchId",
-    c.code,c.name,c.currency,b.name AS "branchName",EXISTS(SELECT 1 FROM cash_sessions s WHERE s.cashbox_id=c.id AND s.status='open') AS "hasOpenSession"
-    FROM cashboxes c JOIN branches b ON b.id=c.branch_id WHERE c.archived_at IS NULL AND
+    c.code,c.name,c.currency,b.name AS "branchName",s.id IS NOT NULL AS "hasOpenSession",s.id AS "openSessionId",
+    s.opening_amount_minor::text AS "openingAmountMinor",s.opened_at AS "openedAt"
+    FROM cashboxes c JOIN branches b ON b.id=c.branch_id LEFT JOIN LATERAL
+    (SELECT id,opening_amount_minor,opened_at FROM cash_sessions WHERE cashbox_id=c.id AND status='open' ORDER BY opened_at DESC LIMIT 1) s ON TRUE
+    WHERE c.archived_at IS NULL AND
     ${auth.tenantWide?"TRUE":`(b.organization_id=ANY($1::uuid[]) OR b.id=ANY($2::uuid[]))`} ORDER BY c.name`,
-    auth.tenantWide?([] as unknown[]):scopeValues(auth))).rows);}
+    auth.tenantWide?([] as unknown[]):scopeValues(auth))).rows.map(moneyObject));}
 
   updateCashbox(auth:AuthContext,id:string,name:string){return this.renameFinanceResource(auth,"cashboxes","cashbox",id,name);}
   archiveCashbox(auth:AuthContext,id:string){
