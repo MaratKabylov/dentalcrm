@@ -3,8 +3,8 @@ import "./globals.css";
 import { AuthShell } from "./auth-shell";
 
 export const metadata: Metadata = {
-  title: "Dental SaaS",
-  description: "Cloud operating system for dental clinics"
+  title: "Dental — управление клиникой",
+  description: "Рабочая система стоматологической клиники: расписание, пациенты, лечение и финансы"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
