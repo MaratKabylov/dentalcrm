@@ -17,7 +17,7 @@ import { BrandMark } from "@/components/shared/brand-mark";
 
 const navItems = [
   { label: "Обзор", href: "/dashboard", icon: LayoutDashboard, enabled: true },
-  { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: false },
+  { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: true },
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: false },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: false },

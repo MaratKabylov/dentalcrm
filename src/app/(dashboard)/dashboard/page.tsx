@@ -42,9 +42,9 @@ export default async function DashboardPage() {
         </Card>
         <Card className="bg-[#123d35] p-6 text-white">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Следующий этап</p>
-          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Календарь записей</h2>
-          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Реестр пациентов готов. Следующий инкремент Phase 1 — врачи, кабинеты, графики и календарь регистратуры.</p>
-          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Пациенты подключены <ArrowUpRight className="size-4" /></div>
+          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Рабочая регистратура</h2>
+          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Пациенты, врачи, графики и календарь объединены в основной операционный поток Phase 1.</p>
+          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Календарь подключён <ArrowUpRight className="size-4" /></div>
         </Card>
       </div>
     </div>

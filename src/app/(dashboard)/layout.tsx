@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen">
       <DashboardSidebar />
       <div className="lg:pl-64">
-        <DashboardHeader activeOrganizationId={context.organization.id} memberships={memberships} userEmail={user.email ?? "user"} />
+        <DashboardHeader activeOrganizationId={context.organization.id} memberships={memberships} userEmail={user.email ?? "user"} userId={user.id} />
         <main className="p-5 lg:p-8">{children}</main>
       </div>
     </div>

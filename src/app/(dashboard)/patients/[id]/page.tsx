@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarPlus, CircleUserRound, Mail, MapPin, Phone, ShieldCh
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getOrganizationContext } from "@/modules/organizations/repository";
 import { patientIdSchema } from "@/modules/patients/schemas";
 import { getPatient } from "@/modules/patients/repository";
 
@@ -21,7 +22,10 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   const parsedId = patientIdSchema.safeParse(id);
   if (!parsedId.success) notFound();
 
-  const patient = await getPatient(parsedId.data);
+  const [patient, context] = await Promise.all([
+    getPatient(parsedId.data),
+    getOrganizationContext(),
+  ]);
   if (!patient) notFound();
 
   const name = [patient.lastName, patient.firstName, patient.middleName].filter(Boolean).join(" ");
@@ -48,7 +52,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </p>
           </div>
         </div>
-        <Button disabled title="Будет доступно после подключения календаря"><CalendarPlus className="size-4" />Новая запись</Button>
+        {context?.can("appointments.manage") && <Link href={`/calendar/new?patient=${patient.id}`}><Button><CalendarPlus className="size-4" />Новая запись</Button></Link>}
       </div>
 
       <div className="flex gap-2 overflow-x-auto border-b">

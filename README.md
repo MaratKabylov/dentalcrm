@@ -1,6 +1,6 @@
 # Dental OS
 
-Multi-tenant operating system for dental clinics in Kazakhstan. **Phase 0** from [`DENTAL_OS_MASTER_ARCHITECTURE.md`](./DENTAL_OS_MASTER_ARCHITECTURE.md) is complete. Phase 1 is in progress: the patient registry is implemented and the calendar is the next module.
+Multi-tenant operating system for dental clinics in Kazakhstan. **Phase 0** from [`DENTAL_OS_MASTER_ARCHITECTURE.md`](./DENTAL_OS_MASTER_ARCHITECTURE.md) is complete. Phase 1 is in progress: the patient registry, doctors, working schedules and the operational calendar are implemented.
 
 ## Stack
 
@@ -29,6 +29,7 @@ Create the first Auth user in Supabase Studio. After login, `/onboarding` atomic
 - Organization bootstrapping runs in one database function and writes an audit record.
 - System roles cannot be edited through authenticated-client policies; custom roles are organization-scoped.
 - Patient records are tenant-scoped, protected by permission-aware RLS and written through audited database functions.
+- Appointment conflicts are blocked in PostgreSQL; every status transition is recorded and patient arrival emits a targeted realtime notification.
 
 ## Quality checks
 

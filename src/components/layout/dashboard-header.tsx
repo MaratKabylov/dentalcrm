@@ -1,7 +1,8 @@
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
+import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { signOut } from "@/modules/auth/actions";
 import type { OrganizationMembership } from "@/modules/organizations/types";
 
@@ -9,9 +10,10 @@ type DashboardHeaderProps = {
   activeOrganizationId: string;
   memberships: OrganizationMembership[];
   userEmail: string;
+  userId: string;
 };
 
-export function DashboardHeader({ activeOrganizationId, memberships, userEmail }: DashboardHeaderProps) {
+export function DashboardHeader({ activeOrganizationId, memberships, userEmail, userId }: DashboardHeaderProps) {
   const active = memberships.find((item) => item.organization.id === activeOrganizationId)!;
   const initials = userEmail.slice(0, 2).toUpperCase();
 
@@ -36,7 +38,7 @@ export function DashboardHeader({ activeOrganizationId, memberships, userEmail }
             <p className="text-[11px] text-[var(--muted)]">{active.roles[0]?.name ?? "Сотрудник"}</p>
           </div>
         )}
-        <Button variant="ghost" className="size-9 px-0" aria-label="Уведомления"><Bell className="size-[18px]" /></Button>
+        <NotificationsMenu organizationId={activeOrganizationId} userId={userId} />
         <details className="relative">
           <summary className="grid size-9 cursor-pointer list-none place-items-center rounded-full bg-[#173f37] text-xs font-bold text-white">{initials}</summary>
           <div className="absolute right-0 mt-2 w-60 rounded-xl border bg-white p-2 shadow-xl">

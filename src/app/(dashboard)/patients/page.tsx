@@ -98,7 +98,7 @@ export default async function PatientsPage({
 
       <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
         <CalendarPlus className="size-4" />
-        Следующим инкрементом карточки пациентов будут связаны с календарём записей.
+        Карточки пациентов связаны с календарём записей.
       </div>
     </div>
   );

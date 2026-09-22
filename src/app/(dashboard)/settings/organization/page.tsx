@@ -1,5 +1,7 @@
-import { BadgeCheck, Globe2, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { BadgeCheck, Globe2, ShieldCheck, Stethoscope } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getOrganizationContext } from "@/modules/organizations/repository";
 
@@ -19,6 +21,7 @@ export default async function OrganizationSettingsPage() {
         </dl>
       </Card>
       <Card className="p-6"><div className="flex gap-3"><ShieldCheck className="mt-0.5 size-5 text-[var(--brand)]" /><div><h2 className="font-semibold">Ваш доступ</h2><p className="mt-1 text-sm text-[var(--muted)]">{context.roles.map((role) => role.name).join(", ") || "Без назначенной роли"}</p><div className="mt-4 flex flex-wrap gap-2">{[...context.permissions].sort().map((permission) => <span key={permission} className="rounded-lg bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium">{permission}</span>)}</div></div></div></Card>
+      {context.can("settings.manage") && <Card className="flex items-center justify-between gap-4 p-6"><div className="flex items-center gap-3"><Stethoscope className="size-5 text-[var(--brand)]" /><div><h2 className="font-semibold">Врачи и графики</h2><p className="mt-1 text-sm text-[var(--muted)]">Настройте врачей, кабинеты и рабочие часы.</p></div></div><Link href="/settings/doctors"><Button variant="secondary">Открыть</Button></Link></Card>}
     </div>
   );
 }
