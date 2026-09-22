@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing and builds
+/coverage
+/.next
+/out
+
+# local tooling
+/.npm-cache
+/.vercel
+
+# environment files
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+*.log
+*.tsbuildinfo
+next-env.d.ts
+
+# Supabase local state
+/supabase/.branches
+/supabase/.temp
