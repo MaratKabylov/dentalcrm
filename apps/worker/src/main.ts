@@ -1,20 +1,26 @@
 import { createHash,randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import pg,{type PoolClient} from "pg";
 
 const databaseUrl=process.env.DATABASE_URL ?? "postgresql://dental:local-development-only@localhost:5432/dental";
 const appRole=process.env.DB_APP_ROLE ?? "dental_app";
 if(!/^[a-z_][a-z0-9_]*$/.test(appRole))throw new Error("DB_APP_ROLE is invalid");
-const pool=new pg.Pool({connectionString:databaseUrl,max:4});let stopping=false;
+const pool=new pg.Pool({connectionString:databaseUrl,max:Number(process.env.DB_POOL_MAX ?? 2),allowExitOnIdle:true,
+  connectionTimeoutMillis:10_000,idleTimeoutMillis:20_000});let stopping=false;
 const messagingWebhookUrl=process.env.MESSAGING_WEBHOOK_URL;
 const messagingWebhookToken=process.env.MESSAGING_WEBHOOK_TOKEN;
-process.on("SIGINT",()=>{stopping=true;});process.on("SIGTERM",()=>{stopping=true;});
+export async function runWorkerBatch(maxPasses=10):Promise<{processed:number}>{let total=0;
+  for(let pass=0;pass<maxPasses;pass+=1){const tenants=await pool.query<{id:string}>("SELECT id FROM tenants WHERE status='active'");let processed=0;
+    for(const tenant of tenants.rows){processed+=await processNextOutbox(tenant.id);processed+=await processNextWorkflow(tenant.id);
+      processed+=await processNextNotification(tenant.id);}total+=processed;if(processed===0)break;}
+  return {processed:total};}
 
-while(!stopping){const tenants=await pool.query<{id:string}>("SELECT id FROM tenants WHERE status='active'");let processed=0;
-  for(const tenant of tenants.rows){processed+=await processNextOutbox(tenant.id);processed+=await processNextWorkflow(tenant.id);
-    processed+=await processNextNotification(tenant.id);}
-  if(processed===0)await delay(1_000);
-}
-await pool.end();
+async function runContinuously(){process.on("SIGINT",()=>{stopping=true;});process.on("SIGTERM",()=>{stopping=true;});
+  while(!stopping){const result=await runWorkerBatch(1);if(result.processed===0)await delay(1_000);}await pool.end();}
+
+const entry=process.argv[1];
+if(entry && resolve(entry)===fileURLToPath(import.meta.url))await runContinuously();
 
 async function beginTenant(client:PoolClient,tenantId:string){await client.query("BEGIN");await client.query(`SET LOCAL ROLE ${appRole}`);
   await client.query("SELECT set_config('app.tenant_id',$1,true)",[tenantId]);}

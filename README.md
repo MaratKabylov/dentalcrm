@@ -1,27 +1,30 @@
 # Dental SaaS
 
-Implementation of the architecture in `DENTAL_SAAS_MASTER_ARCHITECTURE.md`.
+Dental clinic platform deployed on Vercel with Supabase PostgreSQL, Auth, and Storage.
 
-## Local development
+## Architecture
 
-1. Copy `.env.template` to `.env` and `apps/api/.env`.
-2. Run `npm run setup`.
-3. Start dependencies with `npm run infra:up`.
-4. Apply the schema with `npm run db:migrate` and create demo access with `npm run db:seed`.
-5. Start all apps with `npm run dev`.
+- `apps/web`: Next.js frontend on Vercel.
+- `apps/api`: NestJS API on Vercel Functions.
+- `apps/worker`: bounded background processing invoked by Vercel Cron.
+- Supabase: PostgreSQL, user authentication, and the private `dental-private` storage bucket.
+
+Business data is accessed only through the NestJS API. PostgreSQL RLS, application permissions, audit events, and transactional domain rules remain authoritative. Supabase's public Data API roles have no direct access to the business tables.
+
+## First-time Supabase setup
+
+1. Copy `apps/api/.env.template` to `apps/api/.env` and `apps/web/.env.template` to `apps/web/.env.local`.
+2. Fill the Supabase project URL, publishable/secret keys, direct database URL, and transaction-pooler URL.
+3. Install dependencies with `npm run setup`.
+4. Verify API credentials with `corepack pnpm --filter @dental/api supabase:check`.
+5. Apply the empty schema with `npm run db:migrate`.
+6. Set a strong `SEED_PASSWORD`, then run `npm run db:seed`. This creates the first Supabase Auth user and its clinic owner membership.
+7. Start locally with `npm run dev`.
 
 - Web: http://localhost:3000
 - API: http://localhost:4000/api/v1
 - OpenAPI: http://localhost:4000/docs
-- MinIO console: http://localhost:9001
 
-Local development defaults to `AUTH_MODE=local`. After `npm run db:seed`, sign in with tenant `demo-clinic`, username `owner`, and password `change-me-local` (override with `SEED_LOGIN` and `SEED_PASSWORD`). Passwords are scrypt-hashed and the browser receives only a revocable HttpOnly session cookie. Both `local` and header-based `development` modes are rejected when `NODE_ENV=production`; production uses signed OIDC access tokens and JWKS discovery.
+The default initial login is tenant `demo-clinic` and email `owner@example.com`. Its password is the `SEED_PASSWORD` value used during seeding.
 
-See [Foundation](docs/architecture/foundation.md), [Tenant and organization scope](docs/architecture/organization-scope.md),
-[Clinic Core](docs/architecture/clinic-core.md), [Clinical Core](docs/architecture/clinical-core.md), [Finance](docs/architecture/finance.md),
-[CRM and Workflow](docs/architecture/phase-4-crm-workflow.md), [Recall and Waitlist](docs/architecture/phase-5-recall-waitlist.md),
-[Inventory](docs/architecture/phase-6-inventory.md), [Compensation](docs/architecture/phase-7-compensation.md), and
-[Patient Experience](docs/architecture/phase-8-patient-experience.md),
-[Laboratory, Insurance, and Loyalty](docs/architecture/phase-9-laboratory-insurance-loyalty.md), and
-[Advanced Analytics](docs/architecture/phase-11-advanced-analytics.md) for domain boundaries. See
-[Local Authentication and Administration](docs/architecture/local-auth-administration.md) for the development login, session security, and admin panel.
+See [Vercel + Supabase deployment](docs/deployment/vercel-supabase.md) for production configuration and [Foundation](docs/architecture/foundation.md) for domain architecture.

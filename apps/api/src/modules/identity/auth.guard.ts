@@ -8,6 +8,7 @@ import { IS_PUBLIC } from "./public.decorator.js";
 import { TokenVerifierService, type VerifiedPrincipal } from "./token-verifier.service.js";
 import { LocalAuthService } from "./local-auth.service.js";
 import { readSessionCookie } from "./session-cookie.js";
+import { DatabaseService } from "../../database/database.service.js";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -15,19 +16,21 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly verifier: TokenVerifierService,
     private readonly identity: IdentityRepository,
-    private readonly localAuth: LocalAuthService
+    private readonly localAuth: LocalAuthService,
+    private readonly database: DatabaseService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [context.getHandler(), context.getClass()])) return true;
     const request = context.switchToHttp().getRequest<Request>();
     const principal = await this.getPrincipal(request);
-    if (!uuidSchema.safeParse(principal.tenantId).success) throw new UnauthorizedException("Tenant claim is invalid");
-    const membership = await this.identity.resolveMembership(principal.tenantId, principal.subject);
+    const tenantId = principal.tenantId;
+    if (!tenantId || !uuidSchema.safeParse(tenantId).success) throw new UnauthorizedException("Tenant is invalid");
+    const membership = await this.identity.resolveMembership(tenantId, principal.subject);
     if (!membership) throw new UnauthorizedException("No active membership for this tenant");
 
     request.auth = {
-      tenantId: principal.tenantId,
+      tenantId,
       subject: principal.subject,
       userId: membership.userId,
       membershipId: membership.membershipId,
@@ -54,6 +57,14 @@ export class AuthGuard implements CanActivate {
     }
     const authorization = request.header("authorization");
     if (!authorization?.startsWith("Bearer ")) throw new UnauthorizedException("Bearer token is required");
-    return this.verifier.verify(authorization.slice(7));
+    const principal = await this.verifier.verify(authorization.slice(7));
+    if (mode !== "supabase") return principal;
+    const slug = request.header("x-tenant-slug")?.trim().toLowerCase();
+    if (!slug || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(slug)) {
+      throw new UnauthorizedException("Tenant slug is required");
+    }
+    const tenantId = await this.database.findActiveTenantIdBySlug(slug);
+    if (!tenantId) throw new UnauthorizedException("Tenant is unavailable");
+    return { ...principal, tenantId };
   }
 }

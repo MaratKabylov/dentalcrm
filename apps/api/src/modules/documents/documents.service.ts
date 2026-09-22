@@ -1,4 +1,4 @@
-import type { CreateDocumentInput, SignDocumentInput } from "@dental/contracts";
+import type { CreateDocumentInput, CreateDocumentUploadInput, SignDocumentInput } from "@dental/contracts";
 import { HttpStatus, Injectable } from "@nestjs/common";
 import type { PoolClient } from "pg";
 import { ApiException } from "../../common/http/api.exception.js";
@@ -6,6 +6,7 @@ import { DatabaseService } from "../../database/database.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import type { AuthContext } from "../identity/auth-context.js";
 import { OutboxService } from "../outbox/outbox.service.js";
+import { SupabaseAdminService } from "../../integrations/supabase/supabase-admin.service.js";
 
 export interface DocumentRow { id: string; patientId: string; encounterId: string | null; kind: string; title: string; status: string; currentVersion: number; createdAt: Date }
 const documentSelect = `id,patient_id AS "patientId",encounter_id AS "encounterId",kind,title,status,
@@ -13,7 +14,23 @@ const documentSelect = `id,patient_id AS "patientId",encounter_id AS "encounterI
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly database: DatabaseService, private readonly audit: AuditService, private readonly outbox: OutboxService) {}
+  constructor(private readonly database: DatabaseService, private readonly audit: AuditService, private readonly outbox: OutboxService,
+    private readonly supabase: SupabaseAdminService) {}
+
+  createUpload(auth: AuthContext, input: CreateDocumentUploadInput) {
+    return this.supabase.createSignedUpload(auth.tenantId, input.fileName);
+  }
+
+  async createDownload(auth: AuthContext, documentId: string, versionId: string) {
+    const storageKey = await this.database.withTenant(auth, async (client) => {
+      const row = (await client.query<{ storageKey: string }>(`SELECT v.storage_key AS "storageKey"
+        FROM document_versions v JOIN documents d ON d.id=v.document_id
+        WHERE d.id=$1 AND v.id=$2`, [documentId, versionId])).rows[0];
+      if (!row) throw new ApiException(HttpStatus.NOT_FOUND, "DOCUMENT_VERSION_NOT_FOUND", "Document version not found");
+      return row.storageKey;
+    });
+    return this.supabase.createSignedDownload(storageKey);
+  }
 
   create(auth: AuthContext, input: CreateDocumentInput) {
     return this.database.withTenant(auth, async (client) => {

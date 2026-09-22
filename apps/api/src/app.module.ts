@@ -24,9 +24,10 @@ import { ExperienceModule } from "./modules/experience/experience.module.js";
 import { CommercialModule } from "./modules/commercial/commercial.module.js";
 import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
 import { AdministrationModule } from "./modules/administration/administration.module.js";
+import { SupabaseModule } from "./integrations/supabase/supabase.module.js";
 
 @Module({
-  imports: [DatabaseModule, IdentityModule, HealthModule, OrganizationsModule, ClinicModule, PatientsModule, SchedulingModule,
+  imports: [DatabaseModule, SupabaseModule, IdentityModule, HealthModule, OrganizationsModule, ClinicModule, PatientsModule, SchedulingModule,
     ClinicalModule, TreatmentPlansModule, DocumentsModule, FinanceModule, CrmModule, TasksModule, WorkflowModule, EngagementModule, InventoryModule,
     CompensationModule, ExperienceModule, CommercialModule, AnalyticsModule, AdministrationModule],
   providers: [

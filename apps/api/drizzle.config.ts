@@ -5,7 +5,8 @@ export default defineConfig({
   schema: "./src/database/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgresql://dental:local-development-only@localhost:5432/dental"
+    url: process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL ??
+      "postgresql://dental:local-development-only@localhost:5432/dental"
   },
   strict: true,
   verbose: true

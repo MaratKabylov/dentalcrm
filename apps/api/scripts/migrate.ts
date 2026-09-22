@@ -2,7 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
-const databaseUrl = process.env.DATABASE_URL ?? "postgresql://dental:local-development-only@localhost:5432/dental";
+const databaseUrl = process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL ??
+  "postgresql://dental:local-development-only@localhost:5432/dental";
 
 const migrationsDirectory = fileURLToPath(new URL("../drizzle", import.meta.url));
 const migrationFiles = (await readdir(migrationsDirectory)).filter((name) => name.endsWith(".sql")).sort();

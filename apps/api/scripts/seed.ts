@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
 import { createPasswordHash } from "../src/modules/identity/password.js";
 
-const databaseUrl = process.env.DATABASE_URL ?? "postgresql://dental:local-development-only@localhost:5432/dental";
+const databaseUrl = process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL ??
+  "postgresql://dental:local-development-only@localhost:5432/dental";
 
 const slug = process.env.SEED_TENANT_SLUG ?? "demo-clinic";
-const subject = process.env.SEED_USER_SUBJECT ?? "local-owner";
+const authMode = process.env.AUTH_MODE ?? "local";
 const login = (process.env.SEED_LOGIN ?? "owner").toLowerCase();
+const email = (process.env.SEED_EMAIL ?? "owner@example.com").toLowerCase();
 const password = process.env.SEED_PASSWORD ?? "change-me-local";
-const passwordCredential = await createPasswordHash(password);
+const subject = await resolveSeedSubject();
 const client = new pg.Client({ connectionString: databaseUrl });
 await client.connect();
 
@@ -21,10 +24,10 @@ try {
     [slug]
   );
   const user = await client.query<{ id: string }>(
-    `INSERT INTO users (external_subject, email, display_name) VALUES ($1, 'owner@example.local', 'Local Owner')
-     ON CONFLICT (external_subject) DO UPDATE SET updated_at = now()
+    `INSERT INTO users (external_subject, email, display_name) VALUES ($1, $2, 'Clinic Owner')
+     ON CONFLICT (external_subject) DO UPDATE SET email=EXCLUDED.email,updated_at=now()
      RETURNING id`,
-    [subject]
+    [subject, email]
   );
   const tenantId = tenant.rows[0]!.id;
   const userId = user.rows[0]!.id;
@@ -61,11 +64,14 @@ try {
     "SELECT id FROM memberships WHERE tenant_id = $1 AND user_id = $2",
     [tenantId, userId]
   );
-  await client.query(
-    `INSERT INTO local_credentials (tenant_id,user_id,username,password_hash,password_salt)
-     VALUES ($1,$2,$3,$4,$5) ON CONFLICT (tenant_id,user_id) DO NOTHING`,
-    [tenantId,userId,login,passwordCredential.hash,passwordCredential.salt]
-  );
+  if (authMode === "local") {
+    const passwordCredential = await createPasswordHash(password);
+    await client.query(
+      `INSERT INTO local_credentials (tenant_id,user_id,username,password_hash,password_salt)
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (tenant_id,user_id) DO NOTHING`,
+      [tenantId,userId,login,passwordCredential.hash,passwordCredential.salt]
+    );
+  }
   const role = await client.query<{ id: string }>(
     `INSERT INTO roles (tenant_id, key, name, is_system, created_by, updated_by)
      VALUES ($1, 'owner', 'Owner', true, $2, $2)
@@ -117,10 +123,36 @@ try {
      VALUES ($1,$2,'consultation','Первичная консультация',30,$3,$3)
      ON CONFLICT (tenant_id,organization_id,code) DO NOTHING`, [tenantId,organization.rows[0]!.id,userId]);
   await client.query("COMMIT");
-  console.info(JSON.stringify({ tenantId, subject, localLogin: { tenant: slug, username: login, password } }, null, 2));
+  console.info(JSON.stringify({ tenantId, subject, login: { tenant: slug, email }, authMode }, null, 2));
 } catch (error) {
   await client.query("ROLLBACK");
   throw error;
 } finally {
   await client.end();
+}
+
+async function resolveSeedSubject(): Promise<string> {
+  if (authMode !== "supabase") return process.env.SEED_USER_SUBJECT ?? "local-owner";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serverKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serverKey) throw new Error("Supabase URL and server key are required to seed Supabase Auth");
+  const supabase = createClient(url, serverKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 100 });
+    if (error) throw error;
+    const existing = data.users.find((user) => user.email?.toLowerCase() === email);
+    if (existing) return existing.id;
+    if (data.users.length < 100) break;
+  }
+
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { display_name: "Clinic Owner" },
+    app_metadata: { tenant_slug: slug }
+  });
+  if (error || !data.user) throw error ?? new Error("Supabase Auth user was not created");
+  return data.user.id;
 }

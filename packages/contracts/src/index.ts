@@ -267,6 +267,11 @@ export const createDocumentSchema = z.object({
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/i)
 });
 
+export const createDocumentUploadSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(127)
+});
+
 export const signDocumentSchema = z.object({
   signerType: z.enum(["patient", "employee", "eds"]),
   signerId: uuidSchema.optional(),
@@ -283,6 +288,7 @@ export type SetOdontogramEntryInput = z.infer<typeof setOdontogramEntrySchema>;
 export type CreateTreatmentPlanInput = z.infer<typeof createTreatmentPlanSchema>;
 export type AcceptTreatmentPlanInput = z.infer<typeof acceptTreatmentPlanSchema>;
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
+export type CreateDocumentUploadInput = z.infer<typeof createDocumentUploadSchema>;
 export type SignDocumentInput = z.infer<typeof signDocumentSchema>;
 
 export const currencySchema = z.string().trim().length(3).transform((value) => value.toUpperCase());

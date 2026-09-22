@@ -12,7 +12,13 @@ export interface TenantTransactionContext {
 
 @Injectable()
 export class DatabaseService implements OnApplicationShutdown {
-  private readonly pool = new Pool({ connectionString: getEnv().DATABASE_URL });
+  private readonly pool = new Pool({
+    connectionString: getEnv().DATABASE_URL,
+    max: getEnv().DB_POOL_MAX,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 20_000,
+    allowExitOnIdle: true
+  });
   readonly orm: NodePgDatabase<typeof schema> = drizzle(this.pool, { schema });
 
   async withTenant<T>(

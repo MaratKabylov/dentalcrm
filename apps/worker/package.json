@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js",
-    "lint": "eslint src",
+    "dev": "tsx --env-file-if-exists=../api/.env watch src/main.ts",
+    "start": "node --env-file-if-exists=../api/.env dist/main.js",
+    "lint": "eslint src api",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
