@@ -23,7 +23,7 @@ export default async function DashboardPage() {
           <p className="mt-2 text-sm text-[var(--muted)]">Безопасный фундамент системы готов к подключению операционных модулей.</p>
         </div>
         <div className="inline-flex items-center gap-2 self-start rounded-full bg-[var(--brand-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-dark)]">
-          <span className="size-1.5 rounded-full bg-[var(--brand)]" />Phase 0 active
+          <span className="size-1.5 rounded-full bg-[var(--brand)]" />Phase 1 active
         </div>
       </div>
 
@@ -42,9 +42,9 @@ export default async function DashboardPage() {
         </Card>
         <Card className="bg-[#123d35] p-6 text-white">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Следующий этап</p>
-          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Пациенты и календарь</h2>
-          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Phase 1 добавит рабочий контур регистратуры поверх готовой модели доступа.</p>
-          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Архитектура подготовлена <ArrowUpRight className="size-4" /></div>
+          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Календарь записей</h2>
+          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Реестр пациентов готов. Следующий инкремент Phase 1 — врачи, кабинеты, графики и календарь регистратуры.</p>
+          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Пациенты подключены <ArrowUpRight className="size-4" /></div>
         </Card>
       </div>
     </div>
