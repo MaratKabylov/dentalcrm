@@ -68,6 +68,7 @@ export type CashDeskState = {
   openedByName: string | null;
   openingBalance: number | null;
   cashPaymentsTotal: number;
+  cashRefundsTotal: number;
   expectedCashBalance: number | null;
 };
 
@@ -78,14 +79,37 @@ export type PaymentListItem = {
   patientName: string;
   invoiceId: string | null;
   invoiceNumber: string | null;
+  branchId: string;
   cashDeskName: string;
   branchName: string;
+  cashShiftId: string;
+  cashShiftStatus: "open" | "closed";
   paymentMethodCode: PaymentMethod["code"];
   paymentMethodName: string;
   amount: number;
+  refundedAmount: number;
   paidAt: string;
-  status: "posted" | "reversed";
+  status: "posted" | "partially_refunded" | "refunded" | "reversed";
   externalReference: string | null;
+  reversalReason: string | null;
+};
+
+export type PaymentRefundListItem = {
+  id: string;
+  refundNumber: string;
+  paymentId: string;
+  receiptNumber: string;
+  patientId: string;
+  patientName: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  cashDeskName: string;
+  branchName: string;
+  paymentMethodName: string;
+  amount: number;
+  reason: string;
+  externalReference: string | null;
+  refundedAt: string;
 };
 
 export type PatientLedgerEntry = {
@@ -93,7 +117,7 @@ export type PatientLedgerEntry = {
   invoiceId: string | null;
   invoiceNumber: string | null;
   paymentId: string | null;
-  entryType: "charge" | "payment" | "refund" | "adjustment";
+  entryType: "charge" | "payment" | "refund" | "reversal" | "adjustment";
   debitAmount: number;
   creditAmount: number;
   description: string;

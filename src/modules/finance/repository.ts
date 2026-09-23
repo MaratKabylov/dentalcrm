@@ -12,6 +12,7 @@ import type {
   PatientLedgerEntry,
   PaymentListItem,
   PaymentMethod,
+  PaymentRefundListItem,
 } from "@/modules/finance/types";
 import { requirePermission } from "@/modules/organizations/repository";
 
@@ -85,6 +86,7 @@ const cashDeskRowSchema = z.object({
   opened_by_name: z.string().nullable(),
   opening_balance: z.coerce.number().nullable(),
   cash_payments_total: z.coerce.number(),
+  cash_refunds_total: z.coerce.number(),
   expected_cash_balance: z.coerce.number().nullable(),
 });
 
@@ -95,14 +97,37 @@ const paymentRowSchema = z.object({
   patient_name: z.string(),
   invoice_id: z.uuid().nullable(),
   invoice_number: z.string().nullable(),
+  branch_id: z.uuid(),
   cash_desk_name: z.string(),
   branch_name: z.string(),
+  cash_shift_id: z.uuid(),
+  cash_shift_status: z.enum(["open", "closed"]),
   payment_method_code: z.enum(["cash", "card", "kaspi", "bank_transfer", "other"]),
   payment_method_name: z.string(),
   amount: z.coerce.number(),
+  refunded_amount: z.coerce.number(),
   paid_at: z.string(),
-  status: z.enum(["posted", "reversed"]),
+  status: z.enum(["posted", "partially_refunded", "refunded", "reversed"]),
   external_reference: z.string().nullable(),
+  reversal_reason: z.string().nullable(),
+});
+
+const paymentRefundRowSchema = z.object({
+  id: z.uuid(),
+  refund_number: z.string(),
+  payment_id: z.uuid(),
+  receipt_number: z.string(),
+  patient_id: z.uuid(),
+  patient_name: z.string(),
+  invoice_id: z.uuid(),
+  invoice_number: z.string(),
+  cash_desk_name: z.string(),
+  branch_name: z.string(),
+  payment_method_name: z.string(),
+  amount: z.coerce.number(),
+  reason: z.string(),
+  external_reference: z.string().nullable(),
+  refunded_at: z.string(),
 });
 
 const ledgerRowSchema = z.object({
@@ -110,7 +135,7 @@ const ledgerRowSchema = z.object({
   invoice_id: z.uuid().nullable(),
   invoice_number: z.string().nullable(),
   payment_id: z.uuid().nullable(),
-  entry_type: z.enum(["charge", "payment", "refund", "adjustment"]),
+  entry_type: z.enum(["charge", "payment", "refund", "reversal", "adjustment"]),
   debit_amount: z.coerce.number(),
   credit_amount: z.coerce.number(),
   description: z.string(),
@@ -257,6 +282,7 @@ export async function listCashDesks(): Promise<CashDeskState[]> {
     openedByName: row.opened_by_name,
     openingBalance: row.opening_balance,
     cashPaymentsTotal: row.cash_payments_total,
+    cashRefundsTotal: row.cash_refunds_total,
     expectedCashBalance: row.expected_cash_balance,
   }));
 }
@@ -279,14 +305,49 @@ export async function listPayments(patientId?: string): Promise<PaymentListItem[
     patientName: row.patient_name,
     invoiceId: row.invoice_id,
     invoiceNumber: row.invoice_number,
+    branchId: row.branch_id,
     cashDeskName: row.cash_desk_name,
     branchName: row.branch_name,
+    cashShiftId: row.cash_shift_id,
+    cashShiftStatus: row.cash_shift_status,
     paymentMethodCode: row.payment_method_code,
     paymentMethodName: row.payment_method_name,
     amount: row.amount,
+    refundedAmount: row.refunded_amount,
     paidAt: row.paid_at,
     status: row.status,
     externalReference: row.external_reference,
+    reversalReason: row.reversal_reason,
+  }));
+}
+
+export async function listPaymentRefunds(patientId?: string): Promise<PaymentRefundListItem[]> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_payment_refunds", {
+    org_id: context.organization.id,
+    target_patient_id: patientId ?? null,
+    result_limit: 100,
+  });
+  if (error) throw new AppError("PAYMENT_REFUNDS_LOAD_FAILED", "Не удалось загрузить возвраты.");
+  const parsed = z.array(paymentRefundRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_PAYMENT_REFUND_DATA", "Получены некорректные данные возвратов.");
+  return parsed.data.map((row) => ({
+    id: row.id,
+    refundNumber: row.refund_number,
+    paymentId: row.payment_id,
+    receiptNumber: row.receipt_number,
+    patientId: row.patient_id,
+    patientName: row.patient_name,
+    invoiceId: row.invoice_id,
+    invoiceNumber: row.invoice_number,
+    cashDeskName: row.cash_desk_name,
+    branchName: row.branch_name,
+    paymentMethodName: row.payment_method_name,
+    amount: row.amount,
+    reason: row.reason,
+    externalReference: row.external_reference,
+    refundedAt: row.refunded_at,
   }));
 }
 

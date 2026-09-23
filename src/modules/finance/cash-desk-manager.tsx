@@ -70,6 +70,7 @@ export function CashDeskManager({
               <div className="flex justify-between gap-4"><span className="text-[var(--muted)]">Кассир</span><span>{desk.openedByName || "Не указано"}</span></div>
               <div className="flex justify-between gap-4"><span className="text-[var(--muted)]">На начало</span><span>{money.format(desk.openingBalance ?? 0)}</span></div>
               <div className="flex justify-between gap-4"><span className="text-[var(--muted)]">Наличными принято</span><span>{money.format(desk.cashPaymentsTotal)}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-[var(--muted)]">Наличными возвращено</span><span className="text-rose-700">−{money.format(desk.cashRefundsTotal)}</span></div>
               <div className="flex justify-between gap-4 border-t pt-2 font-semibold"><span>Ожидается в кассе</span><span>{money.format(desk.expectedCashBalance ?? 0)}</span></div>
             </div>
           ) : (
