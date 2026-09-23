@@ -34,7 +34,8 @@ body {
 button,
 a,
 input,
-select {
+select,
+textarea {
   outline-color: var(--brand);
 }
 

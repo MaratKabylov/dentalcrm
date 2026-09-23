@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CircleDollarSign,
   LayoutDashboard,
+  Megaphone,
   Settings2,
   Stethoscope,
   UsersRound,
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Обзор", href: "/dashboard", icon: LayoutDashboard, enabled: true },
   { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: true },
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
+  { label: "CRM", href: "/crm", icon: Megaphone, enabled: true },
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
@@ -28,9 +30,11 @@ const navItems = [
 export function DashboardSidebar({
   canReadClinical,
   canReadFinance,
+  canReadCrm,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
+  canReadCrm: boolean;
 }) {
   const pathname = usePathname();
 
@@ -42,6 +46,7 @@ export function DashboardSidebar({
           const Icon = item.icon;
           if (item.href === "/clinical" && !canReadClinical) return null;
           if (item.href === "/finance" && !canReadFinance) return null;
+          if (item.href === "/crm" && !canReadCrm) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">
@@ -65,7 +70,7 @@ export function DashboardSidebar({
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">Phase 3</span><br />Финансовый контур
+        <span className="font-semibold text-[var(--foreground)]">Phase 4</span><br />CRM и коммуникации
       </div>
     </aside>
   );

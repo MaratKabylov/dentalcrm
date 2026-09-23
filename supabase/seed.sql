@@ -14,6 +14,8 @@ insert into public.permissions (code, description) values
   ('finance.read', 'Просмотр финансов'),
   ('finance.manage', 'Управление финансами'),
   ('cashdesk.manage', 'Управление кассой'),
+  ('crm.read', 'Просмотр CRM'),
+  ('crm.manage', 'Управление лидами и источниками'),
   ('inventory.read', 'Просмотр склада'),
   ('inventory.manage', 'Управление складом'),
   ('reports.read', 'Просмотр отчётов'),
