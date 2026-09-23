@@ -4,6 +4,8 @@ import { ArrowLeft, CalendarPlus, CircleUserRound, Mail, MapPin, Phone, ShieldCh
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AttachmentsPanel } from "@/modules/attachments/attachments-panel";
+import { listPatientAttachments } from "@/modules/attachments/repository";
 import { getOrganizationContext } from "@/modules/organizations/repository";
 import { patientIdSchema } from "@/modules/patients/schemas";
 import { getPatient } from "@/modules/patients/repository";
@@ -27,6 +29,10 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     getOrganizationContext(),
   ]);
   if (!patient) notFound();
+
+  const attachments = context?.can("clinical.read")
+    ? await listPatientAttachments(patient.id)
+    : [];
 
   const name = [patient.lastName, patient.firstName, patient.middleName].filter(Boolean).join(" ");
   const age = calculateAge(patient.birthDate);
@@ -59,7 +65,11 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <span className="border-b-2 border-[var(--brand)] px-3 py-3 text-sm font-semibold text-[var(--brand-dark)]">Обзор</span>
         {context?.can("clinical.read") && <Link href={`/patients/${patient.id}/odontogram`} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)] hover:text-[var(--foreground)]">Одонтограмма</Link>}
         {context?.can("clinical.read") && <Link href={`/patients/${patient.id}/treatment`} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)] hover:text-[var(--foreground)]">Планы лечения</Link>}
-        {['Записи', 'История', 'Документы', 'Оплаты', 'Активность'].map((tab) => (
+        {['Записи', 'История'].map((tab) => (
+          <span key={tab} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)]">{tab}</span>
+        ))}
+        {context?.can("clinical.read") && <a href="#documents" className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)] hover:text-[var(--foreground)]">Документы</a>}
+        {['Оплаты', 'Активность'].map((tab) => (
           <span key={tab} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)]">{tab}</span>
         ))}
       </div>
@@ -81,6 +91,17 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </div>
         </Card>
       </div>
+
+      {context?.can("clinical.read") && (
+        <Card id="documents" className="scroll-mt-6 p-5 lg:p-6">
+          <AttachmentsPanel
+            patientId={patient.id}
+            attachments={attachments}
+            editable={context.can("clinical.write")}
+            timeZone={context.organization.timezone}
+          />
+        </Card>
+      )}
     </div>
   );
 }

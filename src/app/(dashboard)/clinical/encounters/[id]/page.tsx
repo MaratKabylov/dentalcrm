@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarClock, CheckCircle2, CircleUserRound, MapPin, Stethoscope } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { AttachmentsPanel } from "@/modules/attachments/attachments-panel";
+import { listPatientAttachments } from "@/modules/attachments/repository";
 import { listClinicalTemplates } from "@/modules/clinical-templates/repository";
 import { EncounterForm } from "@/modules/clinical/encounter-form";
 import { getClinicalEncounter } from "@/modules/clinical/repository";
@@ -65,6 +67,7 @@ export default async function ClinicalEncounterPage({
     availablePlanItems,
     serviceCatalog,
     clinicalTemplates,
+    attachments,
   ] = await Promise.all([
     getLatestOdontogram(encounter.patientId),
     listEncounterDiagnoses(encounter.id),
@@ -73,6 +76,7 @@ export default async function ClinicalEncounterPage({
     listAvailablePlanItemsForEncounter(encounter.id),
     getServiceCatalog(),
     listClinicalTemplates(),
+    listPatientAttachments(encounter.patientId, encounter.id),
   ]);
 
   return (
@@ -152,6 +156,16 @@ export default async function ClinicalEncounterPage({
           encounterId={encounter.id}
           odontogram={odontogram}
           editable={canEdit}
+        />
+      </Card>
+
+      <Card className="p-5 lg:p-6">
+        <AttachmentsPanel
+          patientId={encounter.patientId}
+          encounterId={encounter.id}
+          attachments={attachments}
+          editable={context.can("clinical.write")}
+          timeZone={context.organization.timezone}
         />
       </Card>
     </div>
