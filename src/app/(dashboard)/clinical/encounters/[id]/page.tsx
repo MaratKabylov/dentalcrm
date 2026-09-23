@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { EncounterForm } from "@/modules/clinical/encounter-form";
 import { getClinicalEncounter } from "@/modules/clinical/repository";
 import { clinicalEncounterIdSchema } from "@/modules/clinical/schemas";
+import { DiagnosisPanel } from "@/modules/diagnoses/diagnosis-panel";
+import { listDiagnosisOptions, listEncounterDiagnoses } from "@/modules/diagnoses/repository";
 import { OdontogramEditor } from "@/modules/odontogram/odontogram-editor";
 import { getLatestOdontogram } from "@/modules/odontogram/repository";
 import { getOrganizationContext } from "@/modules/organizations/repository";
@@ -48,7 +50,11 @@ export default async function ClinicalEncounterPage({
   if (!encounter || !context) notFound();
 
   const canEdit = encounter.status === "open" && context.can("clinical.write");
-  const odontogram = await getLatestOdontogram(encounter.patientId);
+  const [odontogram, diagnoses, diagnosisOptions] = await Promise.all([
+    getLatestOdontogram(encounter.patientId),
+    listEncounterDiagnoses(encounter.id),
+    listDiagnosisOptions(),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -98,6 +104,15 @@ export default async function ClinicalEncounterPage({
             <ClinicalField label="Клинические заметки" value={encounter.clinicalNotes} />
           </div>
         )}
+      </Card>
+
+      <Card className="p-5 lg:p-6">
+        <DiagnosisPanel
+          encounterId={encounter.id}
+          diagnoses={diagnoses}
+          options={diagnosisOptions}
+          editable={canEdit}
+        />
       </Card>
 
       <Card className="p-5 lg:p-6">

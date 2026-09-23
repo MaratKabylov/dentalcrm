@@ -34,7 +34,7 @@ export function EncounterForm({ encounter }: { encounter: ClinicalEncounter }) {
         </label>
         <label className="space-y-2">
           <span className="text-sm font-semibold">Диагностическое заключение</span>
-          <textarea className={textareaClassName} name="diagnosisSummary" defaultValue={encounter.diagnosisSummary ?? ""} maxLength={4000} placeholder="Предварительный или подтверждённый диагноз" />
+          <textarea className={textareaClassName} name="diagnosisSummary" defaultValue={encounter.diagnosisSummary ?? ""} maxLength={4000} placeholder="Клиническая сводка; структурированные диагнозы добавляются ниже" />
           <FieldError errors={state.fieldErrors?.diagnosisSummary} />
         </label>
         <label className="space-y-2">
