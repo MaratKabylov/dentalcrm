@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { EncounterForm } from "@/modules/clinical/encounter-form";
 import { getClinicalEncounter } from "@/modules/clinical/repository";
 import { clinicalEncounterIdSchema } from "@/modules/clinical/schemas";
+import { OdontogramEditor } from "@/modules/odontogram/odontogram-editor";
+import { getLatestOdontogram } from "@/modules/odontogram/repository";
 import { getOrganizationContext } from "@/modules/organizations/repository";
 
 function formatDate(value: string, timeZone: string) {
@@ -46,6 +48,7 @@ export default async function ClinicalEncounterPage({
   if (!encounter || !context) notFound();
 
   const canEdit = encounter.status === "open" && context.can("clinical.write");
+  const odontogram = await getLatestOdontogram(encounter.patientId);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -95,6 +98,15 @@ export default async function ClinicalEncounterPage({
             <ClinicalField label="Клинические заметки" value={encounter.clinicalNotes} />
           </div>
         )}
+      </Card>
+
+      <Card className="p-5 lg:p-6">
+        <OdontogramEditor
+          patientId={encounter.patientId}
+          encounterId={encounter.id}
+          odontogram={odontogram}
+          editable={canEdit}
+        />
       </Card>
     </div>
   );

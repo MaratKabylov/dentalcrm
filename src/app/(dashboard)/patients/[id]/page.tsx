@@ -57,7 +57,8 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
 
       <div className="flex gap-2 overflow-x-auto border-b">
         <span className="border-b-2 border-[var(--brand)] px-3 py-3 text-sm font-semibold text-[var(--brand-dark)]">Обзор</span>
-        {['Записи', 'Одонтограмма', 'Планы лечения', 'История', 'Документы', 'Оплаты', 'Активность'].map((tab) => (
+        {context?.can("clinical.read") && <Link href={`/patients/${patient.id}/odontogram`} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)] hover:text-[var(--foreground)]">Одонтограмма</Link>}
+        {['Записи', 'Планы лечения', 'История', 'Документы', 'Оплаты', 'Активность'].map((tab) => (
           <span key={tab} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)]">{tab}</span>
         ))}
       </div>
