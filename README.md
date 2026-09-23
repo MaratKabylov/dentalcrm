@@ -1,6 +1,6 @@
 # Dental OS
 
-Multi-tenant operating system for dental clinics in Kazakhstan. **Phases 0 and 1** from [`DENTAL_OS_MASTER_ARCHITECTURE.md`](./DENTAL_OS_MASTER_ARCHITECTURE.md) are complete. Phase 2 is in progress: clinical encounters, the versioned FDI odontogram and structured encounter diagnoses are implemented, with the treatment catalogue next.
+Multi-tenant operating system for dental clinics in Kazakhstan. **Phases 0 and 1** from [`DENTAL_OS_MASTER_ARCHITECTURE.md`](./DENTAL_OS_MASTER_ARCHITECTURE.md) are complete. Phase 2 is in progress: clinical encounters, the versioned FDI odontogram, structured diagnoses and the treatment catalogue are implemented, with treatment plans next.
 
 ## Stack
 
