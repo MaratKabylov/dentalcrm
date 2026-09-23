@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronRight, CircleDollarSign } from "lucide-react";
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ChevronRight, CircleDollarSign } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { getInvoiceSummary, listInvoices } from "@/modules/finance/repository";
+import { getInvoiceSummary, listInvoices, listPatientLedger } from "@/modules/finance/repository";
 import { getOrganizationContext } from "@/modules/organizations/repository";
 import { getPatient } from "@/modules/patients/repository";
 import { patientIdSchema } from "@/modules/patients/schemas";
@@ -13,10 +13,11 @@ export default async function PatientFinancePage({ params }: { params: Promise<{
   const parsedId = patientIdSchema.safeParse(id);
   if (!parsedId.success) notFound();
 
-  const [patient, invoices, summary, context] = await Promise.all([
+  const [patient, invoices, summary, ledger, context] = await Promise.all([
     getPatient(parsedId.data),
     listInvoices(parsedId.data),
     getInvoiceSummary(parsedId.data),
+    listPatientLedger(parsedId.data),
     getOrganizationContext(),
   ]);
   if (!patient || !context) notFound();
@@ -46,6 +47,20 @@ export default async function PatientFinancePage({ params }: { params: Promise<{
             <ChevronRight className="size-4 text-[var(--muted)]" />
           </Link>
         ))}</div>}
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="border-b p-5"><h2 className="font-semibold">Лицевой счёт</h2><p className="mt-1 text-xs text-[var(--muted)]">Начисления и оплаты в хронологическом порядке.</p></div>
+        {ledger.length === 0 ? <div className="p-8 text-center text-sm text-[var(--muted)]">Проводок пока нет.</div> : <div className="divide-y">{ledger.map((entry) => {
+          const isCharge = entry.debitAmount > 0;
+          return (
+            <div key={entry.id} className="flex items-center gap-4 p-5">
+              <div className={isCharge ? "grid size-9 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700" : "grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"}>{isCharge ? <ArrowUpRight className="size-4" /> : <ArrowDownLeft className="size-4" />}</div>
+              <div className="min-w-0 flex-1"><p className="text-sm font-medium">{entry.description}</p><p className="mt-1 text-xs text-[var(--muted)]">{new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone: context.organization.timezone }).format(new Date(entry.occurredAt))}</p></div>
+              <div className="text-right"><p className={isCharge ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"}>{isCharge ? "+" : "−"}{money.format(isCharge ? entry.debitAmount : entry.creditAmount)}</p>{entry.invoiceId && entry.invoiceNumber && <Link href={`/finance/invoices/${entry.invoiceId}`} className="mt-1 block text-xs text-[var(--brand)] hover:underline">{entry.invoiceNumber}</Link>}</div>
+            </div>
+          );
+        })}</div>}
       </Card>
     </div>
   );

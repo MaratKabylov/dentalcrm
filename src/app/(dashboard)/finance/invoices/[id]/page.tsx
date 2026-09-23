@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CircleUserRound, ReceiptText, Stethoscope } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { getInvoice, listInvoiceItems } from "@/modules/finance/repository";
+import { InvoicePaymentForm } from "@/modules/finance/invoice-payment-form";
+import { getInvoice, listCashDesks, listInvoiceItems, listPaymentMethods } from "@/modules/finance/repository";
 import { invoiceIdSchema } from "@/modules/finance/schemas";
 import type { InvoiceStatus } from "@/modules/finance/types";
 import { getOrganizationContext } from "@/modules/organizations/repository";
@@ -19,9 +20,11 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const parsedId = invoiceIdSchema.safeParse(id);
   if (!parsedId.success) notFound();
 
-  const [invoice, items, context] = await Promise.all([
+  const [invoice, items, cashDesks, paymentMethods, context] = await Promise.all([
     getInvoice(parsedId.data),
     listInvoiceItems(parsedId.data),
+    listCashDesks(),
+    listPaymentMethods(),
     getOrganizationContext(),
   ]);
   if (!invoice || !context) notFound();
@@ -67,6 +70,17 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           <div className="flex justify-between gap-5 font-semibold text-amber-700"><span>Остаток</span><span>{money.format(invoice.debtAmount)}</span></div>
         </div>
       </Card>
+
+      {invoice.debtAmount > 0 && context.can("cashdesk.manage") && (
+        <InvoicePaymentForm
+          key={`${invoice.id}-${invoice.debtAmount}`}
+          invoiceId={invoice.id}
+          debtAmount={invoice.debtAmount}
+          cashDesks={cashDesks.filter((desk) => desk.branchId === invoice.branchId && desk.isActive)}
+          paymentMethods={paymentMethods}
+          currency={context.organization.currency}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
-import { createInvoiceFromEncounterSchema } from "@/modules/finance/schemas";
+import type { FormActionState } from "@/modules/auth/types";
+import {
+  closeCashShiftSchema,
+  createInvoiceFromEncounterSchema,
+  openCashShiftSchema,
+  recordInvoicePaymentSchema,
+} from "@/modules/finance/schemas";
 import { requirePermission } from "@/modules/organizations/repository";
 
 export async function createInvoiceFromEncounter(formData: FormData) {
@@ -22,4 +28,72 @@ export async function createInvoiceFromEncounter(formData: FormData) {
   revalidatePath("/finance");
   revalidatePath(`/clinical/encounters/${parsed.encounterId}`);
   redirect(`/finance/invoices/${invoiceId}`);
+}
+
+export async function openCashShift(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const context = await requirePermission("cashdesk.manage");
+  const parsed = openCashShiftSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { status: "error", message: "Проверьте остаток при открытии смены.", fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("open_cash_shift", {
+    org_id: context.organization.id,
+    target_cash_desk_id: parsed.data.cashDeskId,
+    shift_opening_balance: parsed.data.openingBalance,
+  });
+  if (error) return { status: "error", message: "Не удалось открыть кассовую смену." };
+  revalidatePath("/finance/cash");
+  return { status: "success", message: "Кассовая смена открыта." };
+}
+
+export async function closeCashShift(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const context = await requirePermission("cashdesk.manage");
+  const parsed = closeCashShiftSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { status: "error", message: "Проверьте фактический остаток.", fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("close_cash_shift", {
+    org_id: context.organization.id,
+    target_shift_id: parsed.data.shiftId,
+    counted_closing_balance: parsed.data.closingBalance,
+  });
+  if (error) return { status: "error", message: "Не удалось закрыть кассовую смену." };
+  revalidatePath("/finance/cash");
+  return { status: "success", message: "Кассовая смена закрыта." };
+}
+
+export async function recordInvoicePayment(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const context = await requirePermission("cashdesk.manage");
+  const parsed = recordInvoicePaymentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { status: "error", message: "Проверьте параметры платежа.", fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_invoice_payment", {
+    org_id: context.organization.id,
+    target_invoice_id: parsed.data.invoiceId,
+    target_cash_shift_id: parsed.data.cashShiftId,
+    target_payment_method_id: parsed.data.paymentMethodId,
+    payment_amount: parsed.data.amount,
+    payment_external_reference: parsed.data.externalReference ?? null,
+  });
+  if (error) {
+    return { status: "error", message: "Не удалось провести платёж. Проверьте остаток счёта и открытую смену." };
+  }
+  revalidatePath(`/finance/invoices/${parsed.data.invoiceId}`);
+  revalidatePath("/finance");
+  revalidatePath("/finance/payments");
+  revalidatePath("/finance/cash");
+  return { status: "success", message: "Платёж проведён и отражён в лицевом счёте пациента." };
 }
