@@ -81,3 +81,14 @@ export const applyInvoiceDiscountSchema = z.object({
   discountId: z.uuid("Выберите скидку."),
   reason: paymentReasonSchema,
 });
+
+export const debtAgingBucketSchema = z.enum(["all", "0_7", "8_30", "31_60", "61_90", "91_plus"]);
+
+export const debtFiltersSchema = z.object({
+  q: z.string().trim().max(100).optional().default(""),
+  branch: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.uuid().optional(),
+  ),
+  bucket: debtAgingBucketSchema.optional().default("all"),
+});

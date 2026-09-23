@@ -5,9 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import type {
   BillableEncounter,
   CashDeskState,
+  DebtAgingBucket,
+  DebtAgingSummary,
+  DebtInvoiceItem,
   DiscountApplication,
   DiscountDefinition,
   DiscountRoleLimit,
+  FinanceBranchOption,
   InvoiceDetails,
   InvoiceItem,
   InvoiceListItem,
@@ -69,6 +73,41 @@ const invoiceSummaryRowSchema = z.object({
   invoice_count: z.coerce.number().int(),
   total_amount: z.coerce.number(),
   debt_amount: z.coerce.number(),
+});
+
+const debtAgingSummaryRowSchema = z.object({
+  patient_count: z.coerce.number().int(),
+  invoice_count: z.coerce.number().int(),
+  total_debt: z.coerce.number(),
+  debt_0_7: z.coerce.number(),
+  debt_8_30: z.coerce.number(),
+  debt_31_60: z.coerce.number(),
+  debt_61_90: z.coerce.number(),
+  debt_91_plus: z.coerce.number(),
+  maximum_age_days: z.coerce.number().int(),
+});
+
+const debtInvoiceRowSchema = z.object({
+  invoice_id: z.uuid(),
+  invoice_number: z.string(),
+  patient_id: z.uuid(),
+  patient_name: z.string(),
+  patient_external_number: z.string(),
+  patient_phone: z.string(),
+  branch_id: z.uuid(),
+  branch_name: z.string(),
+  invoice_status: invoiceStatusSchema,
+  total_amount: z.coerce.number(),
+  paid_amount: z.coerce.number(),
+  debt_amount: z.coerce.number(),
+  issued_at: z.string(),
+  age_days: z.coerce.number().int(),
+  aging_bucket: z.enum(["0_7", "8_30", "31_60", "61_90", "91_plus"]),
+});
+
+const financeBranchRowSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
 });
 
 const discountDefinitionRowSchema = z.object({
@@ -285,6 +324,81 @@ export async function getInvoiceSummary(patientId?: string): Promise<InvoiceSumm
     totalAmount: parsed.data[0].total_amount,
     debtAmount: parsed.data[0].debt_amount,
   };
+}
+
+export async function getDebtAgingSummary(branchId?: string): Promise<DebtAgingSummary> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_debt_aging_summary", {
+    org_id: context.organization.id,
+    target_branch_id: branchId ?? null,
+  });
+  if (error) throw new AppError("DEBT_AGING_SUMMARY_LOAD_FAILED", "Не удалось загрузить сводку задолженности.");
+  const parsed = z.array(debtAgingSummaryRowSchema).safeParse(data ?? []);
+  if (!parsed.success || !parsed.data[0]) throw new AppError("INVALID_DEBT_AGING_SUMMARY_DATA", "Получена некорректная сводка задолженности.");
+  const row = parsed.data[0];
+  return {
+    patientCount: row.patient_count,
+    invoiceCount: row.invoice_count,
+    totalDebt: row.total_debt,
+    debt0To7: row.debt_0_7,
+    debt8To30: row.debt_8_30,
+    debt31To60: row.debt_31_60,
+    debt61To90: row.debt_61_90,
+    debt91Plus: row.debt_91_plus,
+    maximumAgeDays: row.maximum_age_days,
+  };
+}
+
+export async function listDebtInvoices(filters: {
+  branchId?: string;
+  agingBucket?: DebtAgingBucket | "all";
+  query?: string;
+} = {}): Promise<DebtInvoiceItem[]> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_debt_invoices", {
+    org_id: context.organization.id,
+    target_branch_id: filters.branchId ?? null,
+    target_aging_bucket: filters.agingBucket ?? "all",
+    search_query: filters.query || null,
+    result_limit: 500,
+  });
+  if (error) throw new AppError("DEBT_INVOICES_LOAD_FAILED", "Не удалось загрузить реестр задолженности.");
+  const parsed = z.array(debtInvoiceRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_DEBT_INVOICE_DATA", "Получены некорректные данные задолженности.");
+  return parsed.data.map((row) => ({
+    invoiceId: row.invoice_id,
+    invoiceNumber: row.invoice_number,
+    patientId: row.patient_id,
+    patientName: row.patient_name,
+    patientExternalNumber: row.patient_external_number,
+    patientPhone: row.patient_phone,
+    branchId: row.branch_id,
+    branchName: row.branch_name,
+    invoiceStatus: row.invoice_status,
+    totalAmount: row.total_amount,
+    paidAmount: row.paid_amount,
+    debtAmount: row.debt_amount,
+    issuedAt: row.issued_at,
+    ageDays: row.age_days,
+    agingBucket: row.aging_bucket,
+  }));
+}
+
+export async function listFinanceBranches(): Promise<FinanceBranchOption[]> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("branches")
+    .select("id, name")
+    .eq("organization_id", context.organization.id)
+    .eq("is_active", true)
+    .order("name");
+  if (error) throw new AppError("FINANCE_BRANCHES_LOAD_FAILED", "Не удалось загрузить филиалы.");
+  const parsed = z.array(financeBranchRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_FINANCE_BRANCH_DATA", "Получены некорректные данные филиалов.");
+  return parsed.data;
 }
 
 export async function listDiscounts(includeInactive = false): Promise<DiscountDefinition[]> {

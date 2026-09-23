@@ -5,6 +5,7 @@ import {
   closeCashShiftSchema,
   createDiscountDefinitionSchema,
   createInvoiceFromEncounterSchema,
+  debtFiltersSchema,
   openCashShiftSchema,
   recordInvoicePaymentSchema,
   recordPaymentRefundSchema,
@@ -65,6 +66,20 @@ describe("discount schemas", () => {
     expect(setDiscountRoleLimitSchema.safeParse({ roleId: id, maxDiscountPercent: "100.01" }).success).toBe(false);
     expect(applyInvoiceDiscountSchema.safeParse({ invoiceId: id, discountId: id, reason: "Программа лояльности" }).success).toBe(true);
     expect(applyInvoiceDiscountSchema.safeParse({ invoiceId: id, discountId: id, reason: "" }).success).toBe(false);
+  });
+});
+
+describe("debtFiltersSchema", () => {
+  it("normalizes empty debt filters", () => {
+    expect(debtFiltersSchema.parse({ q: "", branch: "", bucket: "all" })).toEqual({
+      q: "",
+      branch: undefined,
+      bucket: "all",
+    });
+  });
+
+  it("rejects unknown aging buckets", () => {
+    expect(debtFiltersSchema.safeParse({ bucket: "overdue" }).success).toBe(false);
   });
 });
 

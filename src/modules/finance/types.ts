@@ -50,6 +50,43 @@ export type InvoiceSummary = {
   debtAmount: number;
 };
 
+export type DebtAgingBucket = "0_7" | "8_30" | "31_60" | "61_90" | "91_plus";
+
+export type DebtAgingSummary = {
+  patientCount: number;
+  invoiceCount: number;
+  totalDebt: number;
+  debt0To7: number;
+  debt8To30: number;
+  debt31To60: number;
+  debt61To90: number;
+  debt91Plus: number;
+  maximumAgeDays: number;
+};
+
+export type DebtInvoiceItem = {
+  invoiceId: string;
+  invoiceNumber: string;
+  patientId: string;
+  patientName: string;
+  patientExternalNumber: string;
+  patientPhone: string;
+  branchId: string;
+  branchName: string;
+  invoiceStatus: InvoiceStatus;
+  totalAmount: number;
+  paidAmount: number;
+  debtAmount: number;
+  issuedAt: string;
+  ageDays: number;
+  agingBucket: DebtAgingBucket;
+};
+
+export type FinanceBranchOption = {
+  id: string;
+  name: string;
+};
+
 export type DiscountDefinition = {
   id: string;
   name: string;
