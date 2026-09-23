@@ -20,10 +20,10 @@ export default async function DashboardPage() {
         <div>
           <p className="text-sm font-semibold text-[var(--brand)]">Рабочее пространство</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">{context.organization.name}</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Безопасный фундамент системы готов к подключению операционных модулей.</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Регистратура готова, начат клинический контур работы врача.</p>
         </div>
         <div className="inline-flex items-center gap-2 self-start rounded-full bg-[var(--brand-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-dark)]">
-          <span className="size-1.5 rounded-full bg-[var(--brand)]" />Phase 1 active
+          <span className="size-1.5 rounded-full bg-[var(--brand)]" />Phase 2 active
         </div>
       </div>
 
@@ -41,10 +41,10 @@ export default async function DashboardPage() {
           </div>
         </Card>
         <Card className="bg-[#123d35] p-6 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Следующий этап</p>
-          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Рабочая регистратура</h2>
-          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Пациенты, врачи, графики и календарь объединены в основной операционный поток Phase 1.</p>
-          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Календарь подключён <ArrowUpRight className="size-4" /></div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Клинический этап</p>
+          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Врачебные приёмы</h2>
+          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Врач открывает приём из календаря, ведёт клиническую запись и завершает визит в едином потоке.</p>
+          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Клинический контур подключён <ArrowUpRight className="size-4" /></div>
         </Card>
       </div>
     </div>

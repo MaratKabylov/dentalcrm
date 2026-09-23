@@ -3,6 +3,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, Plus, UserRoun
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { startClinicalEncounter } from "@/modules/clinical/actions";
 import { getOrganizationContext } from "@/modules/organizations/repository";
 import { changeAppointmentStatus } from "@/modules/scheduling/actions";
 import {
@@ -21,29 +22,42 @@ function time(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(value));
 }
 
-function StatusActions({ appointment, canManage }: { appointment: CalendarAppointment; canManage: boolean }) {
+function StatusActions({ appointment, canManage, canWriteClinical }: { appointment: CalendarAppointment; canManage: boolean; canWriteClinical: boolean }) {
   const actions: Record<string, Array<{ status: string; label: string }>> = {
     planned: [{ status: "confirmed", label: "Подтвердить" }, { status: "arrived", label: "Прибыл" }, { status: "cancelled", label: "Отменить" }],
     unconfirmed: [{ status: "confirmed", label: "Подтвердить" }, { status: "arrived", label: "Прибыл" }, { status: "cancelled", label: "Отменить" }],
     confirmed: [{ status: "arrived", label: "Прибыл" }, { status: "cancelled", label: "Отменить" }],
-    arrived: [{ status: "in_progress", label: "Начать приём" }, { status: "cancelled", label: "Отменить" }],
-    in_progress: [{ status: "completed", label: "Завершить" }],
+    arrived: [{ status: "cancelled", label: "Отменить" }],
   };
-  if (!canManage) return null;
+  const statusActions = canManage ? actions[appointment.statusCode] ?? [] : [];
+  const showClinicalAction = canWriteClinical && ["arrived", "in_progress"].includes(appointment.statusCode);
+  if (statusActions.length === 0 && !showClinicalAction) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      {(actions[appointment.statusCode] ?? []).map((action) => (
+      {statusActions.map((action) => (
         <form action={changeAppointmentStatus} key={action.status}>
           <input type="hidden" name="appointmentId" value={appointment.id} />
           <input type="hidden" name="status" value={action.status} />
           <button className="rounded-lg border bg-white px-2.5 py-1 text-xs font-semibold hover:bg-[var(--surface-muted)]">{action.label}</button>
         </form>
       ))}
+      {appointment.statusCode === "arrived" && canWriteClinical && (
+        <form action={startClinicalEncounter}>
+          <input type="hidden" name="appointmentId" value={appointment.id} />
+          <button className="rounded-lg bg-[var(--brand)] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[var(--brand-dark)]">Начать приём</button>
+        </form>
+      )}
+      {appointment.statusCode === "in_progress" && canWriteClinical && (
+        <form action={startClinicalEncounter}>
+          <input type="hidden" name="appointmentId" value={appointment.id} />
+          <button className="rounded-lg bg-[var(--brand)] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[var(--brand-dark)]">Открыть приём</button>
+        </form>
+      )}
     </div>
   );
 }
 
-function AppointmentCard({ appointment, timeZone, canManage }: { appointment: CalendarAppointment; timeZone: string; canManage: boolean }) {
+function AppointmentCard({ appointment, timeZone, canManage, canWriteClinical }: { appointment: CalendarAppointment; timeZone: string; canManage: boolean; canWriteClinical: boolean }) {
   return (
     <div className="rounded-xl border-l-4 bg-white p-4 shadow-sm" style={{ borderLeftColor: appointment.doctorColor }}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -54,7 +68,7 @@ function AppointmentCard({ appointment, timeZone, canManage }: { appointment: Ca
         </div>
         <div className="text-right text-xs text-[var(--muted)]"><p>{appointment.doctorName}</p><p className="mt-1">{appointment.roomName ?? appointment.branchName}</p></div>
       </div>
-      <StatusActions appointment={appointment} canManage={canManage} />
+      <StatusActions appointment={appointment} canManage={canManage} canWriteClinical={canWriteClinical} />
     </div>
   );
 }
@@ -127,7 +141,7 @@ export default async function CalendarPage({
               <section key={key} className="min-w-0">
                 <div className="mb-3 flex items-center justify-between"><div><h2 className="font-semibold capitalize">{heading}</h2><p className="mt-0.5 text-xs text-[var(--muted)]">{doctor ? `${doctor.specializationName} · ${doctor.roomName ?? doctor.branchName}` : `${items.length} записей`}</p></div>{doctor && <span className="size-3 rounded-full" style={{ backgroundColor: doctor.color }} />}</div>
                 <div className="space-y-3 rounded-2xl bg-[var(--surface-muted)] p-3">
-                  {items.length === 0 ? <div className="grid min-h-28 place-items-center text-center text-sm text-[var(--muted)]"><span><Clock3 className="mx-auto mb-2 size-4" />Нет записей</span></div> : items.map((appointment) => <AppointmentCard key={appointment.id} appointment={appointment} timeZone={context.organization.timezone} canManage={context.can("appointments.manage")} />)}
+                  {items.length === 0 ? <div className="grid min-h-28 place-items-center text-center text-sm text-[var(--muted)]"><span><Clock3 className="mx-auto mb-2 size-4" />Нет записей</span></div> : items.map((appointment) => <AppointmentCard key={appointment.id} appointment={appointment} timeZone={context.organization.timezone} canManage={context.can("appointments.manage")} canWriteClinical={context.can("clinical.write")} />)}
                 </div>
               </section>
             );

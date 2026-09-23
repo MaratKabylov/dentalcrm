@@ -19,13 +19,13 @@ const navItems = [
   { label: "Обзор", href: "/dashboard", icon: LayoutDashboard, enabled: true },
   { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: true },
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
-  { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: false },
+  { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: false },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
   { label: "Аналитика", href: "/analytics", icon: BarChart3, enabled: false },
 ];
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ canReadClinical }: { canReadClinical: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -34,6 +34,7 @@ export function DashboardSidebar() {
       <nav className="mt-9 flex flex-1 flex-col gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
+          if (item.href === "/clinical" && !canReadClinical) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">
@@ -57,7 +58,7 @@ export function DashboardSidebar() {
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">Phase 1</span><br />Пациенты и календарь
+        <span className="font-semibold text-[var(--foreground)]">Phase 2</span><br />Клинический MVP
       </div>
     </aside>
   );
