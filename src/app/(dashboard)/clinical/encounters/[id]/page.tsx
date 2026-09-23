@@ -11,6 +11,12 @@ import { listDiagnosisOptions, listEncounterDiagnoses } from "@/modules/diagnose
 import { OdontogramEditor } from "@/modules/odontogram/odontogram-editor";
 import { getLatestOdontogram } from "@/modules/odontogram/repository";
 import { getOrganizationContext } from "@/modules/organizations/repository";
+import { PerformedServicesPanel } from "@/modules/performed-services/performed-services-panel";
+import {
+  listAvailablePlanItemsForEncounter,
+  listEncounterPerformedServices,
+} from "@/modules/performed-services/repository";
+import { getServiceCatalog } from "@/modules/services/repository";
 
 function formatDate(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -50,10 +56,20 @@ export default async function ClinicalEncounterPage({
   if (!encounter || !context) notFound();
 
   const canEdit = encounter.status === "open" && context.can("clinical.write");
-  const [odontogram, diagnoses, diagnosisOptions] = await Promise.all([
+  const [
+    odontogram,
+    diagnoses,
+    diagnosisOptions,
+    performedServices,
+    availablePlanItems,
+    serviceCatalog,
+  ] = await Promise.all([
     getLatestOdontogram(encounter.patientId),
     listEncounterDiagnoses(encounter.id),
     listDiagnosisOptions(),
+    listEncounterPerformedServices(encounter.id),
+    listAvailablePlanItemsForEncounter(encounter.id),
+    getServiceCatalog(),
   ]);
 
   return (
@@ -112,6 +128,18 @@ export default async function ClinicalEncounterPage({
           diagnoses={diagnoses}
           options={diagnosisOptions}
           editable={canEdit}
+        />
+      </Card>
+
+      <Card className="p-5 lg:p-6">
+        <PerformedServicesPanel
+          encounterId={encounter.id}
+          services={serviceCatalog.services}
+          planItems={availablePlanItems}
+          performedServices={performedServices}
+          editable={canEdit}
+          currency={context.organization.currency}
+          timeZone={context.organization.timezone}
         />
       </Card>
 
