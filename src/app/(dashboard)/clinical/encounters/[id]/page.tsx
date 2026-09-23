@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarClock, CheckCircle2, CircleUserRound, MapPin, Stethoscope } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { listClinicalTemplates } from "@/modules/clinical-templates/repository";
 import { EncounterForm } from "@/modules/clinical/encounter-form";
 import { getClinicalEncounter } from "@/modules/clinical/repository";
 import { clinicalEncounterIdSchema } from "@/modules/clinical/schemas";
@@ -63,6 +64,7 @@ export default async function ClinicalEncounterPage({
     performedServices,
     availablePlanItems,
     serviceCatalog,
+    clinicalTemplates,
   ] = await Promise.all([
     getLatestOdontogram(encounter.patientId),
     listEncounterDiagnoses(encounter.id),
@@ -70,6 +72,7 @@ export default async function ClinicalEncounterPage({
     listEncounterPerformedServices(encounter.id),
     listAvailablePlanItemsForEncounter(encounter.id),
     getServiceCatalog(),
+    listClinicalTemplates(),
   ]);
 
   return (
@@ -111,7 +114,7 @@ export default async function ClinicalEncounterPage({
 
       <Card className="p-5 lg:p-6">
         {canEdit ? (
-          <EncounterForm encounter={encounter} />
+          <EncounterForm encounter={encounter} templates={clinicalTemplates.filter((template) => template.isActive)} />
         ) : (
           <div className="grid gap-7 lg:grid-cols-2">
             <ClinicalField label="Жалобы пациента" value={encounter.chiefComplaint} />

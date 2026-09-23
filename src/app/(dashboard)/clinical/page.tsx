@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenText, CalendarDays, ChevronRight, ClipboardPlus, Stethoscope } from "lucide-react";
+import { BookOpenText, CalendarDays, ChevronRight, ClipboardPlus, Files, Stethoscope } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -35,6 +35,7 @@ export default async function ClinicalPage() {
           <p className="mt-2 text-sm text-[var(--muted)]">Открытые приёмы и недавняя клиническая история.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/clinical/templates"><Button variant="secondary"><Files className="size-4" />Шаблоны</Button></Link>
           <Link href="/clinical/services"><Button variant="secondary"><BookOpenText className="size-4" />Каталог услуг</Button></Link>
           <Link href="/calendar"><Button variant="secondary"><CalendarDays className="size-4" />К календарю</Button></Link>
         </div>
