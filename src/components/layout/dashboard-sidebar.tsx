@@ -20,12 +20,18 @@ const navItems = [
   { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: true },
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
-  { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: false },
+  { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
   { label: "Аналитика", href: "/analytics", icon: BarChart3, enabled: false },
 ];
 
-export function DashboardSidebar({ canReadClinical }: { canReadClinical: boolean }) {
+export function DashboardSidebar({
+  canReadClinical,
+  canReadFinance,
+}: {
+  canReadClinical: boolean;
+  canReadFinance: boolean;
+}) {
   const pathname = usePathname();
 
   return (
@@ -35,6 +41,7 @@ export function DashboardSidebar({ canReadClinical }: { canReadClinical: boolean
         {navItems.map((item) => {
           const Icon = item.icon;
           if (item.href === "/clinical" && !canReadClinical) return null;
+          if (item.href === "/finance" && !canReadFinance) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">
@@ -58,7 +65,7 @@ export function DashboardSidebar({ canReadClinical }: { canReadClinical: boolean
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">Phase 2</span><br />Клинический MVP
+        <span className="font-semibold text-[var(--foreground)]">Phase 3</span><br />Финансовый контур
       </div>
     </aside>
   );
