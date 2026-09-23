@@ -50,3 +50,34 @@ export const recordPaymentRefundSchema = z.object({
     z.string().trim().max(200).optional(),
   ),
 });
+
+export const createDiscountDefinitionSchema = z.object({
+  name: z.string().trim().min(2, "Название должно содержать минимум 2 символа.").max(120),
+  type: z.enum(["percentage", "fixed"]),
+  value: z.coerce.number()
+    .positive("Значение должно быть больше нуля.")
+    .max(999999999999.99)
+    .multipleOf(0.01, "Укажите значение с точностью до сотых."),
+}).refine((discount) => discount.type !== "percentage" || discount.value <= 100, {
+  path: ["value"],
+  message: "Процентная скидка не может превышать 100%.",
+});
+
+export const setDiscountDefinitionActiveSchema = z.object({
+  discountId: z.uuid(),
+  isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+
+export const setDiscountRoleLimitSchema = z.object({
+  roleId: z.uuid(),
+  maxDiscountPercent: z.coerce.number()
+    .min(0, "Лимит не может быть отрицательным.")
+    .max(100, "Лимит не может превышать 100%.")
+    .multipleOf(0.01, "Укажите лимит с точностью до сотых."),
+});
+
+export const applyInvoiceDiscountSchema = z.object({
+  invoiceId: z.uuid(),
+  discountId: z.uuid("Выберите скидку."),
+  reason: paymentReasonSchema,
+});

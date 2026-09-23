@@ -50,6 +50,36 @@ export type InvoiceSummary = {
   debtAmount: number;
 };
 
+export type DiscountDefinition = {
+  id: string;
+  name: string;
+  type: "percentage" | "fixed";
+  value: number;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type DiscountApplication = {
+  id: string;
+  discountId: string;
+  discountName: string;
+  discountType: DiscountDefinition["type"];
+  discountValue: number;
+  amountBefore: number;
+  discountAmount: number;
+  amountAfter: number;
+  reason: string;
+  appliedByName: string;
+  appliedAt: string;
+};
+
+export type DiscountRoleLimit = {
+  roleId: string;
+  roleCode: string;
+  roleName: string;
+  maxDiscountPercent: number;
+};
+
 export type PaymentMethod = {
   id: string;
   code: "cash" | "card" | "kaspi" | "bank_transfer" | "other";

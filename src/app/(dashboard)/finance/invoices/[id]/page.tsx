@@ -3,8 +3,17 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CircleUserRound, ReceiptText, Stethoscope } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { InvoiceDiscountPanel } from "@/modules/finance/invoice-discount-panel";
 import { InvoicePaymentForm } from "@/modules/finance/invoice-payment-form";
-import { getInvoice, listCashDesks, listInvoiceItems, listPaymentMethods } from "@/modules/finance/repository";
+import {
+  getCurrentDiscountLimit,
+  getInvoice,
+  listCashDesks,
+  listDiscounts,
+  listInvoiceDiscountApplications,
+  listInvoiceItems,
+  listPaymentMethods,
+} from "@/modules/finance/repository";
 import { invoiceIdSchema } from "@/modules/finance/schemas";
 import type { InvoiceStatus } from "@/modules/finance/types";
 import { getOrganizationContext } from "@/modules/organizations/repository";
@@ -20,11 +29,14 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const parsedId = invoiceIdSchema.safeParse(id);
   if (!parsedId.success) notFound();
 
-  const [invoice, items, cashDesks, paymentMethods, context] = await Promise.all([
+  const [invoice, items, cashDesks, paymentMethods, discounts, discountApplications, maxDiscountPercent, context] = await Promise.all([
     getInvoice(parsedId.data),
     listInvoiceItems(parsedId.data),
     listCashDesks(),
     listPaymentMethods(),
+    listDiscounts(),
+    listInvoiceDiscountApplications(parsedId.data),
+    getCurrentDiscountLimit(),
     getOrganizationContext(),
   ]);
   if (!invoice || !context) notFound();
@@ -70,6 +82,19 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           <div className="flex justify-between gap-5 font-semibold text-amber-700"><span>Остаток</span><span>{money.format(invoice.debtAmount)}</span></div>
         </div>
       </Card>
+
+      <InvoiceDiscountPanel
+        key={`${invoice.id}-${invoice.totalAmount}-${discountApplications.length}`}
+        invoiceId={invoice.id}
+        subtotal={invoice.subtotal}
+        debtAmount={invoice.debtAmount}
+        discounts={discounts}
+        applications={discountApplications}
+        maxDiscountPercent={maxDiscountPercent}
+        currency={context.organization.currency}
+        timeZone={context.organization.timezone}
+        canManage={context.can("finance.manage")}
+      />
 
       {invoice.debtAmount > 0 && context.can("cashdesk.manage") && (
         <InvoicePaymentForm

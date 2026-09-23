@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import type {
   BillableEncounter,
   CashDeskState,
+  DiscountApplication,
+  DiscountDefinition,
+  DiscountRoleLimit,
   InvoiceDetails,
   InvoiceItem,
   InvoiceListItem,
@@ -66,6 +69,36 @@ const invoiceSummaryRowSchema = z.object({
   invoice_count: z.coerce.number().int(),
   total_amount: z.coerce.number(),
   debt_amount: z.coerce.number(),
+});
+
+const discountDefinitionRowSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  discount_type: z.enum(["percentage", "fixed"]),
+  value: z.coerce.number(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+});
+
+const discountApplicationRowSchema = z.object({
+  id: z.uuid(),
+  discount_id: z.uuid(),
+  discount_name: z.string(),
+  discount_type: z.enum(["percentage", "fixed"]),
+  discount_value: z.coerce.number(),
+  amount_before: z.coerce.number(),
+  discount_amount: z.coerce.number(),
+  amount_after: z.coerce.number(),
+  reason: z.string(),
+  applied_by_name: z.string(),
+  applied_at: z.string(),
+});
+
+const discountRoleLimitRowSchema = z.object({
+  role_id: z.uuid(),
+  role_code: z.string(),
+  role_name: z.string(),
+  max_discount_percent: z.coerce.number(),
 });
 
 const paymentMethodRowSchema = z.object({
@@ -252,6 +285,80 @@ export async function getInvoiceSummary(patientId?: string): Promise<InvoiceSumm
     totalAmount: parsed.data[0].total_amount,
     debtAmount: parsed.data[0].debt_amount,
   };
+}
+
+export async function listDiscounts(includeInactive = false): Promise<DiscountDefinition[]> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_discounts", {
+    org_id: context.organization.id,
+    include_inactive: includeInactive,
+  });
+  if (error) throw new AppError("DISCOUNTS_LOAD_FAILED", "Не удалось загрузить справочник скидок.");
+  const parsed = z.array(discountDefinitionRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_DISCOUNT_DATA", "Получены некорректные данные скидок.");
+  return parsed.data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    type: row.discount_type,
+    value: row.value,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function getCurrentDiscountLimit(): Promise<number> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_current_discount_limit", {
+    org_id: context.organization.id,
+  });
+  if (error) throw new AppError("DISCOUNT_LIMIT_LOAD_FAILED", "Не удалось загрузить лимит скидки.");
+  const parsed = z.coerce.number().safeParse(data);
+  if (!parsed.success) throw new AppError("INVALID_DISCOUNT_LIMIT_DATA", "Получен некорректный лимит скидки.");
+  return parsed.data;
+}
+
+export async function listDiscountRoleLimits(): Promise<DiscountRoleLimit[]> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_discount_role_limits", {
+    org_id: context.organization.id,
+  });
+  if (error) throw new AppError("DISCOUNT_ROLE_LIMITS_LOAD_FAILED", "Не удалось загрузить ролевые лимиты скидок.");
+  const parsed = z.array(discountRoleLimitRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_DISCOUNT_ROLE_LIMIT_DATA", "Получены некорректные ролевые лимиты.");
+  return parsed.data.map((row) => ({
+    roleId: row.role_id,
+    roleCode: row.role_code,
+    roleName: row.role_name,
+    maxDiscountPercent: row.max_discount_percent,
+  }));
+}
+
+export async function listInvoiceDiscountApplications(invoiceId: string): Promise<DiscountApplication[]> {
+  const context = await requirePermission("finance.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_invoice_discount_applications", {
+    org_id: context.organization.id,
+    target_invoice_id: invoiceId,
+  });
+  if (error) throw new AppError("DISCOUNT_APPLICATIONS_LOAD_FAILED", "Не удалось загрузить историю скидок.");
+  const parsed = z.array(discountApplicationRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_DISCOUNT_APPLICATION_DATA", "Получена некорректная история скидок.");
+  return parsed.data.map((row) => ({
+    id: row.id,
+    discountId: row.discount_id,
+    discountName: row.discount_name,
+    discountType: row.discount_type,
+    discountValue: row.discount_value,
+    amountBefore: row.amount_before,
+    discountAmount: row.discount_amount,
+    amountAfter: row.amount_after,
+    reason: row.reason,
+    appliedByName: row.applied_by_name,
+    appliedAt: row.applied_at,
+  }));
 }
 
 export async function listPaymentMethods(): Promise<PaymentMethod[]> {
