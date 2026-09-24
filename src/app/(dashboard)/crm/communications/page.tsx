@@ -6,6 +6,7 @@ import {
   CircleAlert,
   Clock3,
   FileText,
+  BellRing,
   Filter,
   Inbox,
   Plus,
@@ -67,7 +68,7 @@ export default async function CommunicationsPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[var(--brand)]">CRM · единый журнал</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Коммуникации</h1><p className="mt-2 text-sm text-[var(--muted)]">Исходящие очереди и входящие сообщения по всем каналам.</p></div>
-        {context.can("communications.manage") && <div className="flex flex-wrap gap-2"><Link href="/crm/communications/templates"><Button variant="secondary"><FileText className="size-4" />Шаблоны</Button></Link><Link href="/crm/communications/new"><Button><Plus className="size-4" />Новое сообщение</Button></Link></div>}
+        <div className="flex flex-wrap gap-2">{context.can("automation.read") && <Link href="/crm/reminders"><Button variant="secondary"><BellRing className="size-4" />Напоминания</Button></Link>}{context.can("communications.manage") && <><Link href="/crm/communications/templates"><Button variant="secondary"><FileText className="size-4" />Шаблоны</Button></Link><Link href="/crm/communications/new"><Button><Plus className="size-4" />Новое сообщение</Button></Link></>}</div>
       </div>
 
       {query.queued === "1" && <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"><CheckCheck className="size-4" />Сообщение поставлено в очередь.</div>}

@@ -19,6 +19,8 @@ export const PERMISSIONS = [
   "recalls.manage",
   "communications.read",
   "communications.manage",
+  "automation.read",
+  "automation.manage",
   "inventory.read",
   "inventory.manage",
   "reports.read",
