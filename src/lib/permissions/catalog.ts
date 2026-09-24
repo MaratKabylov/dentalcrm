@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   "crm.manage",
   "tasks.read",
   "tasks.manage",
+  "recalls.read",
+  "recalls.manage",
   "inventory.read",
   "inventory.manage",
   "reports.read",

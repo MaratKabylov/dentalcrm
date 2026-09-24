@@ -6,6 +6,7 @@ import {
   BarChart3,
   Boxes,
   CalendarDays,
+  CalendarClock,
   ClipboardCheck,
   CircleDollarSign,
   LayoutDashboard,
@@ -23,6 +24,7 @@ const navItems = [
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
   { label: "CRM", href: "/crm", icon: Megaphone, enabled: true },
   { label: "Задачи", href: "/crm/tasks", icon: ClipboardCheck, enabled: true },
+  { label: "Повторные визиты", href: "/crm/recalls", icon: CalendarClock, enabled: true },
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
@@ -34,11 +36,13 @@ export function DashboardSidebar({
   canReadFinance,
   canReadCrm,
   canReadTasks,
+  canReadRecalls,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
   canReadCrm: boolean;
   canReadTasks: boolean;
+  canReadRecalls: boolean;
 }) {
   const pathname = usePathname();
 
@@ -52,6 +56,7 @@ export function DashboardSidebar({
           if (item.href === "/finance" && !canReadFinance) return null;
           if (item.href === "/crm" && !canReadCrm) return null;
           if (item.href === "/crm/tasks" && !canReadTasks) return null;
+          if (item.href === "/crm/recalls" && !canReadRecalls) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">

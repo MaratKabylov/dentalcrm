@@ -18,6 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         canReadFinance={context.can("finance.read")}
         canReadCrm={context.can("crm.read")}
         canReadTasks={context.can("tasks.read")}
+        canReadRecalls={context.can("recalls.read")}
       />
       <div className="lg:pl-64">
         <DashboardHeader activeOrganizationId={context.organization.id} memberships={memberships} userEmail={user.email ?? "user"} userId={user.id} />

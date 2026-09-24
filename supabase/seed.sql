@@ -18,6 +18,8 @@ insert into public.permissions (code, description) values
   ('crm.manage', 'Управление лидами и источниками'),
   ('tasks.read', 'Просмотр задач'),
   ('tasks.manage', 'Управление задачами'),
+  ('recalls.read', 'Просмотр повторных визитов'),
+  ('recalls.manage', 'Управление повторными визитами'),
   ('inventory.read', 'Просмотр склада'),
   ('inventory.manage', 'Управление складом'),
   ('reports.read', 'Просмотр отчётов'),

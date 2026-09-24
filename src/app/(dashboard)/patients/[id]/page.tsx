@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarPlus, CircleUserRound, ClipboardPlus, Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CalendarClock, CalendarPlus, CircleUserRound, ClipboardPlus, Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -59,6 +59,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {context?.can("recalls.manage") && <Link href={`/crm/recalls/new?patientId=${patient.id}`}><Button variant="secondary"><CalendarClock className="size-4" />Повторный визит</Button></Link>}
           {context?.can("tasks.manage") && <Link href={`/crm/tasks/new?patientId=${patient.id}`}><Button variant="secondary"><ClipboardPlus className="size-4" />Создать задачу</Button></Link>}
           {context?.can("appointments.manage") && <Link href={`/calendar/new?patient=${patient.id}`}><Button><CalendarPlus className="size-4" />Новая запись</Button></Link>}
         </div>

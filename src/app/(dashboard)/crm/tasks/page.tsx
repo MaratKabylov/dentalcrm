@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   AlarmClock,
+  CalendarClock,
   CalendarCheck2,
   CheckCircle2,
   CircleAlert,
@@ -78,6 +79,7 @@ export default async function TasksPage({
         </div>
         <div className="flex flex-wrap gap-2">
           {context.can("crm.read") && <Link href="/crm/leads"><Button variant="secondary">Лиды</Button></Link>}
+          {context.can("recalls.read") && <Link href="/crm/recalls"><Button variant="secondary"><CalendarClock className="size-4" />Повторные визиты</Button></Link>}
           {context.can("tasks.manage") && <Link href="/crm/tasks/new"><Button><Plus className="size-4" />Новая задача</Button></Link>}
         </div>
       </div>
