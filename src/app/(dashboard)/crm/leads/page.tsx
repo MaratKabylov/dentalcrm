@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Filter, MessageSquareText, Plus, Search, Settings2, UserRoundSearch } from "lucide-react";
+import { ChevronRight, Filter, ListTodo, MessageSquareText, Plus, Search, Settings2, UserRoundSearch } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,6 +45,7 @@ export default async function LeadsPage({
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[var(--brand)]">CRM · воронка обращений</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Лиды</h1><p className="mt-2 text-sm text-[var(--muted)]">Все обращения до создания полноценной карточки пациента.</p></div>
         <div className="flex flex-wrap gap-2">
+          {context.can("tasks.read") && <Link href="/crm/tasks"><Button variant="secondary"><ListTodo className="size-4" />Задачи</Button></Link>}
           <Link href="/crm/sources"><Button variant="secondary"><Settings2 className="size-4" />Источники</Button></Link>
           {context.can("crm.manage") && <Link href="/crm/leads/new"><Button><Plus className="size-4" />Новый лид</Button></Link>}
         </div>

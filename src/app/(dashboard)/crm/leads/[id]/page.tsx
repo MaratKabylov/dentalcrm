@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Building2, Mail, MessageSquareText, Pencil, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, ClipboardPlus, Mail, MessageSquareText, Pencil, Phone, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,10 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><Link href="/crm/leads" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"><ArrowLeft className="size-4" />К реестру лидов</Link><div className="mt-4 flex flex-wrap items-center gap-3"><h1 className="text-3xl font-semibold tracking-[-0.04em]">{lead.fullName}</h1><span className="rounded-full bg-[var(--brand-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-dark)]">{leadStatusLabels[lead.status]}</span></div><p className="mt-2 text-sm text-[var(--muted)]">Создан {dateTime.format(new Date(lead.createdAt))}</p></div>
-        {context.can("crm.manage") && <Link href={`/crm/leads/${lead.id}/edit`}><Button variant="secondary"><Pencil className="size-4" />Изменить</Button></Link>}
+        <div className="flex flex-wrap gap-2">
+          {context.can("tasks.manage") && <Link href={`/crm/tasks/new?leadId=${lead.id}`}><Button><ClipboardPlus className="size-4" />Создать задачу</Button></Link>}
+          {context.can("crm.manage") && <Link href={`/crm/leads/${lead.id}/edit`}><Button variant="secondary"><Pencil className="size-4" />Изменить</Button></Link>}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

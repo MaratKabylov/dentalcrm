@@ -13,6 +13,8 @@ export const PERMISSIONS = [
   "cashdesk.manage",
   "crm.read",
   "crm.manage",
+  "tasks.read",
+  "tasks.manage",
   "inventory.read",
   "inventory.manage",
   "reports.read",

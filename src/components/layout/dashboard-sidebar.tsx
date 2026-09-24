@@ -6,6 +6,7 @@ import {
   BarChart3,
   Boxes,
   CalendarDays,
+  ClipboardCheck,
   CircleDollarSign,
   LayoutDashboard,
   Megaphone,
@@ -21,6 +22,7 @@ const navItems = [
   { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: true },
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
   { label: "CRM", href: "/crm", icon: Megaphone, enabled: true },
+  { label: "Задачи", href: "/crm/tasks", icon: ClipboardCheck, enabled: true },
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
@@ -31,10 +33,12 @@ export function DashboardSidebar({
   canReadClinical,
   canReadFinance,
   canReadCrm,
+  canReadTasks,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
   canReadCrm: boolean;
+  canReadTasks: boolean;
 }) {
   const pathname = usePathname();
 
@@ -47,6 +51,7 @@ export function DashboardSidebar({
           if (item.href === "/clinical" && !canReadClinical) return null;
           if (item.href === "/finance" && !canReadFinance) return null;
           if (item.href === "/crm" && !canReadCrm) return null;
+          if (item.href === "/crm/tasks" && !canReadTasks) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">
@@ -58,7 +63,9 @@ export function DashboardSidebar({
           }
           const isActive = item.href === "/dashboard"
             ? pathname === item.href
-            : pathname.startsWith(item.href);
+            : item.href === "/crm"
+              ? pathname === "/crm" || pathname.startsWith("/crm/leads") || pathname.startsWith("/crm/sources")
+              : pathname.startsWith(item.href);
           return (
             <Link key={item.href} href={item.href} className={isActive ? "flex h-10 items-center gap-3 rounded-xl bg-[var(--brand-soft)] px-3 text-sm font-semibold text-[var(--brand-dark)]" : "flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)]"}>
               <Icon className="size-[18px]" />{item.label}

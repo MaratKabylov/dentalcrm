@@ -16,6 +16,8 @@ insert into public.permissions (code, description) values
   ('cashdesk.manage', 'Управление кассой'),
   ('crm.read', 'Просмотр CRM'),
   ('crm.manage', 'Управление лидами и источниками'),
+  ('tasks.read', 'Просмотр задач'),
+  ('tasks.manage', 'Управление задачами'),
   ('inventory.read', 'Просмотр склада'),
   ('inventory.manage', 'Управление складом'),
   ('reports.read', 'Просмотр отчётов'),
