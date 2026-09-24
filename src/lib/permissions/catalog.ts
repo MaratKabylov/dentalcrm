@@ -17,6 +17,8 @@ export const PERMISSIONS = [
   "tasks.manage",
   "recalls.read",
   "recalls.manage",
+  "communications.read",
+  "communications.manage",
   "inventory.read",
   "inventory.manage",
   "reports.read",

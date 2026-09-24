@@ -1,6 +1,6 @@
 # Dental OS
 
-Multi-tenant operating system for dental clinics in Kazakhstan. **Phases 0–3** from [`DENTAL_OS_MASTER_ARCHITECTURE.md`](./DENTAL_OS_MASTER_ARCHITECTURE.md) are complete: the secure multi-tenant foundation, reception workflow, clinical MVP and transaction-safe finance contour are implemented. Phase 4 now includes tenant-safe lead management, configurable acquisition sources, a CRM pipeline, unified tasks and repeat-visit recalls with duplicate-safe task generation.
+Multi-tenant operating system for dental clinics in Kazakhstan. **Phases 0–3** from [`DENTAL_OS_MASTER_ARCHITECTURE.md`](./DENTAL_OS_MASTER_ARCHITECTURE.md) are complete: the secure multi-tenant foundation, reception workflow, clinical MVP and transaction-safe finance contour are implemented. Phase 4 now includes tenant-safe lead management, unified tasks, repeat-visit recalls and provider-neutral communications with reusable templates.
 
 ## Stack
 

@@ -11,6 +11,7 @@ import {
   CircleDollarSign,
   LayoutDashboard,
   Megaphone,
+  MessagesSquare,
   Settings2,
   Stethoscope,
   UsersRound,
@@ -25,6 +26,7 @@ const navItems = [
   { label: "CRM", href: "/crm", icon: Megaphone, enabled: true },
   { label: "Задачи", href: "/crm/tasks", icon: ClipboardCheck, enabled: true },
   { label: "Повторные визиты", href: "/crm/recalls", icon: CalendarClock, enabled: true },
+  { label: "Коммуникации", href: "/crm/communications", icon: MessagesSquare, enabled: true },
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
@@ -37,12 +39,14 @@ export function DashboardSidebar({
   canReadCrm,
   canReadTasks,
   canReadRecalls,
+  canReadCommunications,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
   canReadCrm: boolean;
   canReadTasks: boolean;
   canReadRecalls: boolean;
+  canReadCommunications: boolean;
 }) {
   const pathname = usePathname();
 
@@ -57,6 +61,7 @@ export function DashboardSidebar({
           if (item.href === "/crm" && !canReadCrm) return null;
           if (item.href === "/crm/tasks" && !canReadTasks) return null;
           if (item.href === "/crm/recalls" && !canReadRecalls) return null;
+          if (item.href === "/crm/communications" && !canReadCommunications) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">

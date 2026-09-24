@@ -20,6 +20,8 @@ insert into public.permissions (code, description) values
   ('tasks.manage', 'Управление задачами'),
   ('recalls.read', 'Просмотр повторных визитов'),
   ('recalls.manage', 'Управление повторными визитами'),
+  ('communications.read', 'Просмотр коммуникаций'),
+  ('communications.manage', 'Управление коммуникациями и шаблонами'),
   ('inventory.read', 'Просмотр склада'),
   ('inventory.manage', 'Управление складом'),
   ('reports.read', 'Просмотр отчётов'),
