@@ -22,7 +22,7 @@ where role.organization_id is null
   and role.code = any(array['doctor', 'assistant', 'marketer', 'auditor'])
 on conflict do nothing;
 
-create table public.automation_rules (
+create table if not exists public.automation_rules (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete restrict,
   name text not null check (char_length(trim(name)) between 2 and 160),
@@ -44,12 +44,12 @@ create table public.automation_rules (
   unique (organization_id, id)
 );
 
-create unique index automation_rules_name_idx
+create unique index if not exists automation_rules_name_idx
   on public.automation_rules (organization_id, lower(name));
-create index automation_rules_active_idx
+create index if not exists automation_rules_active_idx
   on public.automation_rules (organization_id, is_active, event_code);
 
-create table public.reminder_jobs (
+create table if not exists public.reminder_jobs (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete restrict,
   rule_id uuid not null,
@@ -87,16 +87,16 @@ create table public.reminder_jobs (
   unique (organization_id, id)
 );
 
-create unique index reminder_jobs_appointment_once_idx
+create unique index if not exists reminder_jobs_appointment_once_idx
   on public.reminder_jobs (organization_id, rule_id, appointment_id)
   where appointment_id is not null;
-create unique index reminder_jobs_recall_once_idx
+create unique index if not exists reminder_jobs_recall_once_idx
   on public.reminder_jobs (organization_id, rule_id, recall_id)
   where recall_id is not null;
-create index reminder_jobs_due_idx
+create index if not exists reminder_jobs_due_idx
   on public.reminder_jobs (organization_id, status, scheduled_for)
   where status = 'pending';
-create index reminder_jobs_recent_idx
+create index if not exists reminder_jobs_recent_idx
   on public.reminder_jobs (organization_id, created_at desc);
 
 create or replace function public.normalize_automation_rule_fields()
@@ -110,14 +110,17 @@ begin
 end;
 $$;
 
+drop trigger if exists automation_rules_normalize_fields on public.automation_rules;
 create trigger automation_rules_normalize_fields
 before insert or update of name on public.automation_rules
 for each row execute function public.normalize_automation_rule_fields();
 
+drop trigger if exists automation_rules_set_updated_at on public.automation_rules;
 create trigger automation_rules_set_updated_at
 before update on public.automation_rules
 for each row execute function public.set_updated_at();
 
+drop trigger if exists reminder_jobs_set_updated_at on public.reminder_jobs;
 create trigger reminder_jobs_set_updated_at
 before update on public.reminder_jobs
 for each row execute function public.set_updated_at();
@@ -125,10 +128,12 @@ for each row execute function public.set_updated_at();
 alter table public.automation_rules enable row level security;
 alter table public.reminder_jobs enable row level security;
 
+drop policy if exists automation_rules_select on public.automation_rules;
 create policy automation_rules_select on public.automation_rules
 for select to authenticated
 using (public.current_user_has_permission(organization_id, 'automation.read'));
 
+drop policy if exists reminder_jobs_select on public.reminder_jobs;
 create policy reminder_jobs_select on public.reminder_jobs
 for select to authenticated
 using (public.current_user_has_permission(organization_id, 'automation.read'));
