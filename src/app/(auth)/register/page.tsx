@@ -7,9 +7,11 @@ import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = { title: "Регистрация" };
 
-export default async function RegisterPage() {
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ next?: string; email?: string }> }) {
+  const query = await searchParams;
+  const nextPath = query.next?.startsWith("/") && !query.next.startsWith("//") ? query.next : "/onboarding";
   const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect(nextPath);
 
   return (
     <div>
@@ -18,7 +20,7 @@ export default async function RegisterPage() {
       <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
         После регистрации вы создадите организацию и станете её владельцем.
       </p>
-      <RegisterForm />
+      <RegisterForm nextPath={nextPath} defaultEmail={query.email ?? ""} />
       <p className="mt-7 text-center text-xs leading-5 text-[var(--muted)]">
         Регистрируясь, вы соглашаетесь использовать сервис только для законной обработки данных пациентов.
       </p>

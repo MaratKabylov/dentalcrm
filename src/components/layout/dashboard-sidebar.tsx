@@ -110,7 +110,7 @@ export function DashboardSidebar({
           <ShieldCheck className="size-[18px]" />Администрирование
         </Link>
       )}
-      <Link href="/settings/organization" className="flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)]">
+      <Link href="/settings/organization" className={pathname.startsWith("/settings") ? "flex h-10 items-center gap-3 rounded-xl bg-[var(--brand-soft)] px-3 text-sm font-semibold text-[var(--brand-dark)]" : "flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)]"}>
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">

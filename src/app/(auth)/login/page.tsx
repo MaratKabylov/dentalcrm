@@ -7,9 +7,11 @@ import { getCurrentUser } from "@/modules/auth/repository";
 
 export const metadata: Metadata = { title: "Вход" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; email?: string }> }) {
+  const query = await searchParams;
+  const nextPath = query.next?.startsWith("/") && !query.next.startsWith("//") ? query.next : "/dashboard";
   const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect(nextPath);
 
   return (
     <div>
@@ -18,9 +20,9 @@ export default async function LoginPage() {
       <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
         Используйте учётную запись, на которую администратор выдал доступ.
       </p>
-      <LoginForm />
+      <LoginForm nextPath={nextPath} defaultEmail={query.email ?? ""} />
       <p className="mt-6 text-center text-sm text-[var(--muted)]">
-        Нет аккаунта? <Link href="/register" className="font-semibold text-[var(--brand-dark)] hover:underline">Зарегистрироваться</Link>
+        Нет аккаунта? <Link href={`/register?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(query.email ?? "")}`} className="font-semibold text-[var(--brand-dark)] hover:underline">Зарегистрироваться</Link>
       </p>
       <p className="mt-8 text-center text-xs leading-5 text-[var(--muted)]">
         Доступ к медицинским данным журналируется и защищён политиками клиники.

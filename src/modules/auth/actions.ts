@@ -7,10 +7,17 @@ import { createClient } from "@/lib/supabase/server";
 import { loginSchema, registrationSchema } from "@/modules/auth/schemas";
 import type { FormActionState } from "@/modules/auth/types";
 
+function safeNextPath(value: FormDataEntryValue | null, fallback: string) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : fallback;
+}
+
 export async function login(
   _state: FormActionState,
   formData: FormData,
 ): Promise<FormActionState> {
+  const nextPath = safeNextPath(formData.get("next"), "/dashboard");
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -34,7 +41,7 @@ export async function login(
     };
   }
 
-  redirect("/dashboard");
+  redirect(nextPath);
 }
 
 export async function signOut() {
@@ -47,6 +54,7 @@ export async function register(
   _state: FormActionState,
   formData: FormData,
 ): Promise<FormActionState> {
+  const nextPath = safeNextPath(formData.get("next"), "/onboarding");
   const parsed = registrationSchema.safeParse({
     fullName: formData.get("fullName"),
     email: formData.get("email"),
@@ -68,7 +76,7 @@ export async function register(
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName },
-      emailRedirectTo: `${getAppUrl()}/auth/callback?next=/onboarding`,
+      emailRedirectTo: `${getAppUrl()}/auth/callback?next=${encodeURIComponent(nextPath)}`,
     },
   });
 
@@ -84,7 +92,7 @@ export async function register(
     };
   }
 
-  if (data.session) redirect("/onboarding");
+  if (data.session) redirect(nextPath);
 
   return {
     status: "success",

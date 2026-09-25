@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { register } from "@/modules/auth/actions";
 import { initialFormState } from "@/modules/auth/types";
 
-export function RegisterForm() {
+export function RegisterForm({ nextPath = "/onboarding", defaultEmail = "" }: { nextPath?: string; defaultEmail?: string }) {
   const [state, formAction, pending] = useActionState(register, initialFormState);
 
   return (
     <form action={formAction} className="mt-8 space-y-5">
+      <input type="hidden" name="next" value={nextPath} />
       <label className="block space-y-2">
         <span className="text-sm font-medium">Имя и фамилия</span>
         <div className="relative">
@@ -27,7 +28,7 @@ export function RegisterForm() {
         <span className="text-sm font-medium">Email</span>
         <div className="relative">
           <Mail className="absolute left-3.5 top-3.5 size-4 text-[var(--muted)]" />
-          <Input name="email" type="email" autoComplete="email" placeholder="name@clinic.kz" className="pl-10" required />
+          <Input name="email" type="email" autoComplete="email" placeholder="name@clinic.kz" className="pl-10" defaultValue={defaultEmail} required />
         </div>
         {state.fieldErrors?.email?.[0] && <span className="text-xs text-[var(--danger)]">{state.fieldErrors.email[0]}</span>}
       </label>
@@ -63,7 +64,7 @@ export function RegisterForm() {
       </Button>
 
       <p className="text-center text-sm text-[var(--muted)]">
-        Уже есть аккаунт? <Link href="/login" className="font-semibold text-[var(--brand-dark)] hover:underline">Войти</Link>
+        Уже есть аккаунт? <Link href={`/login?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(defaultEmail)}`} className="font-semibold text-[var(--brand-dark)] hover:underline">Войти</Link>
       </p>
     </form>
   );
