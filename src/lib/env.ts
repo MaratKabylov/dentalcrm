@@ -19,3 +19,12 @@ export function getPublicEnv() {
 
   return parsed.data;
 }
+
+export function getAppUrl() {
+  const parsed = z.url().safeParse(process.env.APP_URL);
+  if (!parsed.success) {
+    throw new Error("APP_URL is not configured.");
+  }
+
+  return parsed.data.replace(/\/$/, "");
+}

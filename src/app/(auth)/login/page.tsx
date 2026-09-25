@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "./login-form";
@@ -18,6 +19,9 @@ export default async function LoginPage() {
         Используйте учётную запись, на которую администратор выдал доступ.
       </p>
       <LoginForm />
+      <p className="mt-6 text-center text-sm text-[var(--muted)]">
+        Нет аккаунта? <Link href="/register" className="font-semibold text-[var(--brand-dark)] hover:underline">Зарегистрироваться</Link>
+      </p>
       <p className="mt-8 text-center text-xs leading-5 text-[var(--muted)]">
         Доступ к медицинским данным журналируется и защищён политиками клиники.
       </p>
