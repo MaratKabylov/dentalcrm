@@ -21,7 +21,16 @@ const filterRowSchema = z.object({ entity_type: z.enum(["branch", "doctor", "sou
 async function analyticsRpc<T>(name: string, params: Record<string, unknown>, schema: z.ZodType<T>, code: string): Promise<T> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc(name, params);
-  if (error) throw new AppError(`${code}_LOAD_FAILED`, "Не удалось загрузить данные аналитики.");
+  if (error) {
+    const diagnostic = process.env.NODE_ENV === "development"
+      ? ` (${error.code}: ${error.message})`
+      : "";
+    throw new AppError(
+      `${code}_LOAD_FAILED`,
+      `Не удалось загрузить данные аналитики.${diagnostic}`,
+      error,
+    );
+  }
   const parsed = schema.safeParse(data ?? []);
   if (!parsed.success) throw new AppError(`INVALID_${code}_DATA`, "Получены некорректные данные аналитики.");
   return parsed.data;
