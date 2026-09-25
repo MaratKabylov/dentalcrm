@@ -35,7 +35,7 @@ const navItems = [
   { label: "Лечение", href: "/clinical", icon: Stethoscope, enabled: true },
   { label: "Документы", href: "/documents", icon: FileCheck2, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
-  { label: "Склад", href: "/inventory", icon: Boxes, enabled: false },
+  { label: "Склад", href: "/inventory", icon: Boxes, enabled: true },
   { label: "Аналитика", href: "/analytics", icon: BarChart3, enabled: false },
 ];
 
@@ -48,6 +48,7 @@ export function DashboardSidebar({
   canReadCommunications,
   canReadAutomation,
   canReadDocuments,
+  canReadInventory,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
@@ -57,6 +58,7 @@ export function DashboardSidebar({
   canReadCommunications: boolean;
   canReadAutomation: boolean;
   canReadDocuments: boolean;
+  canReadInventory: boolean;
 }) {
   const pathname = usePathname();
 
@@ -75,6 +77,7 @@ export function DashboardSidebar({
           if (item.href === "/crm/communications" && !canReadCommunications) return null;
           if (item.href === "/crm/reminders" && !canReadAutomation) return null;
           if (item.href === "/documents" && !canReadDocuments) return null;
+          if (item.href === "/inventory" && !canReadInventory) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">
@@ -100,7 +103,7 @@ export function DashboardSidebar({
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">Phase 5</span><br />Документы и согласия
+        <span className="font-semibold text-[var(--foreground)]">Phase 6</span><br />Склад и материалы
       </div>
     </aside>
   );

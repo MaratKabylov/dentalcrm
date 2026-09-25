@@ -1,0 +1,7 @@
+import Link from "next/link";
+import { ArrowLeft, PackageCheck } from "lucide-react";
+import { ProcedureUsagePanel } from "@/modules/inventory/procedure-usage-panel";
+import { listPendingProcedureMaterialUsage, listStockBatches } from "@/modules/inventory/repository";
+import { getOrganizationContext } from "@/modules/organizations/repository";
+
+export default async function InventoryUsagePage() { const [usages, batches, context] = await Promise.all([listPendingProcedureMaterialUsage(), listStockBatches(), getOrganizationContext()]); if (!context) return null; return <div className="mx-auto max-w-6xl space-y-6"><Link href="/inventory" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)]"><ArrowLeft className="size-4" />К складу</Link><div className="flex items-start gap-4"><div className="grid size-12 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]"><PackageCheck className="size-6" /></div><div><p className="text-sm font-semibold text-[var(--brand)]">Процедурный расход</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Предложенные списания</h1><p className="mt-2 text-sm text-[var(--muted)]">Фактически выполненные процедуры, для которых настроены нормы материалов.</p></div></div><ProcedureUsagePanel usages={usages} batches={batches} canManage={context.can("inventory.manage")} timeZone={context.organization.timezone} /></div>; }
