@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/@fontsource/noto-sans/files/*.woff"],
+  },
 };
 
 export default nextConfig;

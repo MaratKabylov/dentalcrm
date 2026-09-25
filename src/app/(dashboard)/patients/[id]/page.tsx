@@ -74,7 +74,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         {['Записи', 'История'].map((tab) => (
           <span key={tab} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)]">{tab}</span>
         ))}
-        {context?.can("clinical.read") && <a href="#documents" className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)] hover:text-[var(--foreground)]">Документы</a>}
+        {context?.can("documents.read") && <Link href={`/patients/${patient.id}/documents`} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)] hover:text-[var(--foreground)]">Документы и согласия</Link>}
         {['Активность'].map((tab) => (
           <span key={tab} className="whitespace-nowrap px-3 py-3 text-sm text-[var(--muted)]">{tab}</span>
         ))}
