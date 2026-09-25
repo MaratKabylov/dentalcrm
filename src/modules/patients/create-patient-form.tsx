@@ -14,11 +14,18 @@ function FieldError({ errors }: { errors?: string[] }) {
   return <span className="text-xs text-[var(--danger)]">{errors[0]}</span>;
 }
 
-export function CreatePatientForm({ branches }: { branches: BranchOption[] }) {
+export function CreatePatientForm({
+  branches,
+  lead,
+}: {
+  branches: BranchOption[];
+  lead?: { id: string; phone: string; email: string | null; branchId: string | null };
+}) {
   const [state, formAction, pending] = useActionState(createPatient, initialFormState);
 
   return (
     <form action={formAction} className="space-y-7">
+      {lead && <input type="hidden" name="leadId" value={lead.id} />}
       <div className="grid gap-5 md:grid-cols-3">
         <label className="space-y-2">
           <span className="text-sm font-medium">Фамилия *</span>
@@ -37,7 +44,7 @@ export function CreatePatientForm({ branches }: { branches: BranchOption[] }) {
         </label>
         <label className="space-y-2">
           <span className="text-sm font-medium">Телефон *</span>
-          <Input name="phone" type="tel" autoComplete="tel" placeholder="+7 700 000 00 00" required />
+          <Input name="phone" type="tel" autoComplete="tel" placeholder="+7 700 000 00 00" defaultValue={lead?.phone ?? ""} required />
           <FieldError errors={state.fieldErrors?.phone} />
         </label>
         <label className="space-y-2">
@@ -47,7 +54,7 @@ export function CreatePatientForm({ branches }: { branches: BranchOption[] }) {
         </label>
         <label className="space-y-2">
           <span className="text-sm font-medium">Email</span>
-          <Input name="email" type="email" autoComplete="email" />
+          <Input name="email" type="email" autoComplete="email" defaultValue={lead?.email ?? ""} />
           <FieldError errors={state.fieldErrors?.email} />
         </label>
         <label className="space-y-2">
@@ -66,7 +73,7 @@ export function CreatePatientForm({ branches }: { branches: BranchOption[] }) {
         </label>
         <label className="space-y-2">
           <span className="text-sm font-medium">Основной филиал</span>
-          <select name="primaryBranchId" className="h-11 w-full rounded-xl border bg-white px-3.5 text-sm shadow-sm">
+          <select name="primaryBranchId" defaultValue={lead?.branchId ?? ""} className="h-11 w-full rounded-xl border bg-white px-3.5 text-sm shadow-sm">
             <option value="">Не выбран</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>

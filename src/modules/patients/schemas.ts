@@ -7,6 +7,7 @@ const optionalText = (max: number) =>
   z.preprocess(emptyToUndefined, z.string().trim().max(max).optional());
 
 export const createPatientSchema = z.object({
+  leadId: z.preprocess(emptyToUndefined, z.uuid().optional()),
   lastName: z.string().trim().min(1, "Укажите фамилию.").max(100),
   firstName: z.string().trim().min(1, "Укажите имя.").max(100),
   middleName: optionalText(100),

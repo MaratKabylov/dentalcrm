@@ -15,6 +15,7 @@ import {
   BellRing,
   Settings2,
   Stethoscope,
+  Target,
   UsersRound,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ const navItems = [
   { label: "Календарь", href: "/calendar", icon: CalendarDays, enabled: true },
   { label: "Пациенты", href: "/patients", icon: UsersRound, enabled: true },
   { label: "CRM", href: "/crm", icon: Megaphone, enabled: true },
+  { label: "Маркетинг", href: "/crm/marketing", icon: Target, enabled: true },
   { label: "Задачи", href: "/crm/tasks", icon: ClipboardCheck, enabled: true },
   { label: "Повторные визиты", href: "/crm/recalls", icon: CalendarClock, enabled: true },
   { label: "Коммуникации", href: "/crm/communications", icon: MessagesSquare, enabled: true },
@@ -63,6 +65,7 @@ export function DashboardSidebar({
           if (item.href === "/clinical" && !canReadClinical) return null;
           if (item.href === "/finance" && !canReadFinance) return null;
           if (item.href === "/crm" && !canReadCrm) return null;
+          if (item.href === "/crm/marketing" && !canReadCrm) return null;
           if (item.href === "/crm/tasks" && !canReadTasks) return null;
           if (item.href === "/crm/recalls" && !canReadRecalls) return null;
           if (item.href === "/crm/communications" && !canReadCommunications) return null;
@@ -92,7 +95,7 @@ export function DashboardSidebar({
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">Phase 4</span><br />CRM и коммуникации
+        <span className="font-semibold text-[var(--foreground)]">Phase 5</span><br />Документы и согласия
       </div>
     </aside>
   );

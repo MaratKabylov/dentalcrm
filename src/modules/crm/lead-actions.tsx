@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
-import { LoaderCircle, MessageSquarePlus, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { LoaderCircle, MessageSquarePlus, RefreshCw, UserCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { initialFormState } from "@/modules/auth/types";
-import { addLeadActivity, setLeadStatus } from "@/modules/crm/actions";
+import { addLeadActivity, convertLeadToPatient, setLeadStatus } from "@/modules/crm/actions";
 import { editableLeadStatusOptions, leadActivityOptions } from "@/modules/crm/constants";
 import type { LeadListItem } from "@/modules/crm/types";
+import type { PatientListItem } from "@/modules/patients/types";
 
 function ActionMessage({ state }: { state: typeof initialFormState }) {
   if (!state.message) return null;
@@ -60,10 +62,46 @@ function ActivityForm({ leadId }: { leadId: string }) {
   );
 }
 
-export function LeadActions({ lead }: { lead: LeadListItem }) {
+function patientName(patient: PatientListItem) {
+  return [patient.lastName, patient.firstName, patient.middleName].filter(Boolean).join(" ");
+}
+
+function ConversionForm({ lead, patients }: { lead: LeadListItem; patients: PatientListItem[] }) {
+  const [state, formAction, pending] = useActionState(convertLeadToPatient, initialFormState);
+  if (lead.convertedPatientId) {
+    return <Link href={`/patients/${lead.convertedPatientId}`} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><UserCheck className="size-4" />Открыть карточку пациента</Link>;
+  }
+  return (
+    <form action={formAction} className="space-y-3">
+      <input type="hidden" name="leadId" value={lead.id} />
+      <div><h3 className="text-sm font-semibold">Конвертация в пациента</h3><p className="mt-1 text-xs text-[var(--muted)]">Найдены совпадения по телефону лида.</p></div>
+      <select name="patientId" defaultValue="" className="h-11 w-full rounded-xl border bg-white px-3.5 text-sm shadow-sm" required>
+        <option value="">Выберите пациента</option>
+        {patients.map((patient) => <option key={patient.id} value={patient.id}>{patientName(patient)} · {patient.phone}</option>)}
+      </select>
+      {patients.length === 0 && <p className="text-xs text-amber-700">Совпадений нет. Сначала создайте карточку пациента.</p>}
+      {state.message && <ActionMessage state={state} />}
+      <div className="grid gap-2">
+        <Button disabled={pending || patients.length === 0} className="w-full">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <UserCheck className="size-4" />}{pending ? "Связываем…" : "Связать с пациентом"}</Button>
+        <Link href={`/patients/new?leadId=${lead.id}`} className="inline-flex h-10 items-center justify-center rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-[var(--surface-muted)]">Создать нового пациента</Link>
+      </div>
+    </form>
+  );
+}
+
+export function LeadActions({
+  lead,
+  patients = [],
+  canConvert = false,
+}: {
+  lead: LeadListItem;
+  patients?: PatientListItem[];
+  canConvert?: boolean;
+}) {
   return (
     <div className="space-y-6">
       <StatusForm lead={lead} />
+      {(canConvert || lead.convertedPatientId) && <div className="border-t pt-5"><ConversionForm lead={lead} patients={patients} /></div>}
       <div className="border-t pt-5"><ActivityForm leadId={lead.id} /></div>
     </div>
   );

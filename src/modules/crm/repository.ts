@@ -7,9 +7,13 @@ import { leadStatusSchema } from "@/modules/crm/schemas";
 import type {
   CrmAssignee,
   CrmOption,
+  LeadAttribution,
   LeadActivity,
   LeadFilters,
   LeadListItem,
+  MarketingAttributionRow,
+  MarketingCampaign,
+  MarketingReportFilters,
   PatientSource,
 } from "@/modules/crm/types";
 import { requirePermission } from "@/modules/organizations/repository";
@@ -25,6 +29,51 @@ const patientSourceRowSchema = z.object({
 
 const optionRowSchema = z.object({ id: z.uuid(), name: z.string() });
 const assigneeRowSchema = z.object({ id: z.uuid(), full_name: z.string() });
+
+const marketingCampaignRowSchema = z.object({
+  id: z.uuid(),
+  source_id: z.uuid(),
+  source_name: z.string(),
+  source_color: z.string(),
+  branch_id: z.uuid().nullable(),
+  branch_name: z.string().nullable(),
+  name: z.string(),
+  code: z.string(),
+  utm_source: z.string().nullable(),
+  utm_medium: z.string().nullable(),
+  utm_campaign: z.string().nullable(),
+  budget_amount: z.coerce.number(),
+  starts_on: z.string(),
+  ends_on: z.string().nullable(),
+  is_active: z.boolean(),
+});
+
+const leadAttributionRowSchema = z.object({
+  campaign_id: z.uuid().nullable(),
+  campaign_name: z.string().nullable(),
+  utm_source: z.string().nullable(),
+  utm_medium: z.string().nullable(),
+  utm_campaign: z.string().nullable(),
+  utm_content: z.string().nullable(),
+  utm_term: z.string().nullable(),
+  landing_page: z.string().nullable(),
+});
+
+const marketingAttributionRowSchema = z.object({
+  campaign_id: z.uuid().nullable(),
+  campaign_name: z.string(),
+  source_id: z.uuid(),
+  source_name: z.string(),
+  source_color: z.string(),
+  branch_id: z.uuid().nullable(),
+  branch_name: z.string().nullable(),
+  budget_amount: z.coerce.number(),
+  leads_count: z.coerce.number().int().nonnegative(),
+  converted_count: z.coerce.number().int().nonnegative(),
+  appointments_count: z.coerce.number().int().nonnegative(),
+  completed_appointments_count: z.coerce.number().int().nonnegative(),
+  revenue_amount: z.coerce.number(),
+});
 
 const leadRowSchema = z.object({
   id: z.uuid(),
@@ -95,6 +144,90 @@ export async function listPatientSources(includeInactive = false): Promise<Patie
     color: row.color,
     sortOrder: row.sort_order,
     isActive: row.is_active,
+  }));
+}
+
+export async function listMarketingCampaigns(includeInactive = false): Promise<MarketingCampaign[]> {
+  const context = await requirePermission("crm.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_marketing_campaigns", {
+    org_id: context.organization.id,
+    include_inactive: includeInactive,
+  });
+  if (error) throw new AppError("CRM_CAMPAIGNS_LOAD_FAILED", "Не удалось загрузить маркетинговые кампании.");
+  const parsed = z.array(marketingCampaignRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_CRM_CAMPAIGN_DATA", "Получены некорректные данные кампаний.");
+  return parsed.data.map((row) => ({
+    id: row.id,
+    sourceId: row.source_id,
+    sourceName: row.source_name,
+    sourceColor: row.source_color,
+    branchId: row.branch_id,
+    branchName: row.branch_name,
+    name: row.name,
+    code: row.code,
+    utmSource: row.utm_source,
+    utmMedium: row.utm_medium,
+    utmCampaign: row.utm_campaign,
+    budgetAmount: row.budget_amount,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+    isActive: row.is_active,
+  }));
+}
+
+export async function getLeadAttribution(leadId: string): Promise<LeadAttribution | null> {
+  const context = await requirePermission("crm.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_lead_attribution", {
+    org_id: context.organization.id,
+    target_lead_id: leadId,
+  });
+  if (error) throw new AppError("LEAD_ATTRIBUTION_LOAD_FAILED", "Не удалось загрузить атрибуцию лида.");
+  const parsed = z.array(leadAttributionRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_LEAD_ATTRIBUTION_DATA", "Получены некорректные данные атрибуции.");
+  const row = parsed.data[0];
+  return row ? {
+    campaignId: row.campaign_id,
+    campaignName: row.campaign_name,
+    utmSource: row.utm_source,
+    utmMedium: row.utm_medium,
+    utmCampaign: row.utm_campaign,
+    utmContent: row.utm_content,
+    utmTerm: row.utm_term,
+    landingPage: row.landing_page,
+  } : null;
+}
+
+export async function listMarketingAttribution(
+  filters: MarketingReportFilters,
+): Promise<MarketingAttributionRow[]> {
+  const context = await requirePermission("reports.read");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_marketing_attribution", {
+    org_id: context.organization.id,
+    report_start: filters.from,
+    report_end: filters.to,
+    source_filter: filters.source ?? null,
+    branch_filter: filters.branch ?? null,
+  });
+  if (error) throw new AppError("MARKETING_REPORT_LOAD_FAILED", "Не удалось сформировать отчёт по маркетингу.");
+  const parsed = z.array(marketingAttributionRowSchema).safeParse(data ?? []);
+  if (!parsed.success) throw new AppError("INVALID_MARKETING_REPORT_DATA", "Получены некорректные данные отчёта.");
+  return parsed.data.map((row) => ({
+    campaignId: row.campaign_id,
+    campaignName: row.campaign_name,
+    sourceId: row.source_id,
+    sourceName: row.source_name,
+    sourceColor: row.source_color,
+    branchId: row.branch_id,
+    branchName: row.branch_name,
+    budgetAmount: row.budget_amount,
+    leadsCount: row.leads_count,
+    convertedCount: row.converted_count,
+    appointmentsCount: row.appointments_count,
+    completedAppointmentsCount: row.completed_appointments_count,
+    revenueAmount: row.revenue_amount,
   }));
 }
 

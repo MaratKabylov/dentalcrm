@@ -1,20 +1,29 @@
 import Link from "next/link";
-import { ArrowLeft, Building2, ClipboardPlus, Mail, MessageCircle, MessageSquareText, Pencil, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, ClipboardPlus, ExternalLink, Mail, MessageCircle, MessageSquareText, Pencil, Phone, Target, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LeadActions } from "@/modules/crm/lead-actions";
 import { leadActivityLabels, leadStatusLabels } from "@/modules/crm/constants";
-import { getLead, listLeadActivities } from "@/modules/crm/repository";
+import { getLead, getLeadAttribution, listLeadActivities } from "@/modules/crm/repository";
 import { getOrganizationContext } from "@/modules/organizations/repository";
+import { listPatients } from "@/modules/patients/repository";
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [lead, activities, context] = await Promise.all([getLead(id), listLeadActivities(id), getOrganizationContext()]);
+  const [lead, activities, attribution, context] = await Promise.all([getLead(id), listLeadActivities(id), getLeadAttribution(id), getOrganizationContext()]);
   if (!lead) notFound();
   if (!context) return null;
+  const patients = context.can("patients.read") && !lead.convertedPatientId ? await listPatients(lead.phone) : [];
   const dateTime = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: context.organization.timezone });
+  const utmValues = [
+    ["utm_source", attribution?.utmSource],
+    ["utm_medium", attribution?.utmMedium],
+    ["utm_campaign", attribution?.utmCampaign],
+    ["utm_content", attribution?.utmContent],
+    ["utm_term", attribution?.utmTerm],
+  ] as const;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -29,6 +38,16 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          {(attribution?.campaignName || utmValues.some(([, value]) => value) || attribution?.landingPage) && (
+            <Card className="p-5">
+              <div className="flex items-center gap-2"><Target className="size-5 text-[var(--brand)]" /><h2 className="font-semibold">Маркетинговая атрибуция</h2></div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                {attribution?.campaignName && <div><p className="text-xs text-[var(--muted)]">Кампания</p><p className="mt-1 text-sm font-medium">{attribution.campaignName}</p></div>}
+                {utmValues.map(([label, value]) => value && <div key={label}><p className="text-xs text-[var(--muted)]">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>)}
+                {attribution?.landingPage && <div className="sm:col-span-2"><p className="text-xs text-[var(--muted)]">Посадочная страница</p><a href={attribution.landingPage} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-[var(--brand)] hover:underline">{attribution.landingPage}<ExternalLink className="size-3.5" /></a></div>}
+              </div>
+            </Card>
+          )}
           <Card className="p-5"><div className="grid gap-4 sm:grid-cols-2">
             <div className="flex gap-3"><Phone className="mt-0.5 size-4 text-[var(--brand)]" /><div><p className="text-xs text-[var(--muted)]">Телефон</p><a href={`tel:${lead.phone}`} className="mt-1 block text-sm font-medium hover:text-[var(--brand)]">{lead.phone}</a></div></div>
             <div className="flex gap-3"><Mail className="mt-0.5 size-4 text-[var(--brand)]" /><div><p className="text-xs text-[var(--muted)]">Email</p><p className="mt-1 text-sm font-medium">{lead.email ?? "Не указан"}</p></div></div>
@@ -38,7 +57,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
           <Card className="overflow-hidden"><div className="flex items-center gap-2 border-b px-5 py-4"><MessageSquareText className="size-5 text-[var(--brand)]" /><h2 className="font-semibold">История активности</h2></div>{activities.length === 0 ? <div className="p-8 text-center text-sm text-[var(--muted)]">Активностей пока нет.</div> : <div className="divide-y">{activities.map((activity) => <div key={activity.id} className="p-5"><div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold">{leadActivityLabels[activity.type]}</span><span className="text-xs text-[var(--muted)]">{dateTime.format(new Date(activity.createdAt))}</span></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6">{activity.type === "status_change" ? activity.body.split(" → ").map((status) => leadStatusLabels[status as keyof typeof leadStatusLabels] ?? status).join(" → ") : activity.body}</p><p className="mt-2 text-xs text-[var(--muted)]">{activity.employeeName}</p></div>)}</div>}</Card>
         </div>
-        {context.can("crm.manage") && <Card className="h-fit p-5"><LeadActions lead={lead} /></Card>}
+        {context.can("crm.manage") && <Card className="h-fit p-5"><LeadActions lead={lead} patients={patients} canConvert={context.can("patients.read")} /></Card>}
       </div>
     </div>
   );

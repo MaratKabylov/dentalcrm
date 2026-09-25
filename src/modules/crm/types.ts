@@ -17,6 +17,51 @@ export type PatientSource = {
   isActive: boolean;
 };
 
+export type MarketingCampaign = {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  sourceColor: string;
+  branchId: string | null;
+  branchName: string | null;
+  name: string;
+  code: string;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  budgetAmount: number;
+  startsOn: string;
+  endsOn: string | null;
+  isActive: boolean;
+};
+
+export type LeadAttribution = {
+  campaignId: string | null;
+  campaignName: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  utmTerm: string | null;
+  landingPage: string | null;
+};
+
+export type MarketingAttributionRow = {
+  campaignId: string | null;
+  campaignName: string;
+  sourceId: string;
+  sourceName: string;
+  sourceColor: string;
+  branchId: string | null;
+  branchName: string | null;
+  budgetAmount: number;
+  leadsCount: number;
+  convertedCount: number;
+  appointmentsCount: number;
+  completedAppointmentsCount: number;
+  revenueAmount: number;
+};
+
 export type CrmOption = {
   id: string;
   name: string;
@@ -59,6 +104,13 @@ export type LeadActivity = {
 export type LeadFilters = {
   q?: string;
   status?: LeadStatus | "all";
+  source?: string;
+  branch?: string;
+};
+
+export type MarketingReportFilters = {
+  from: string;
+  to: string;
   source?: string;
   branch?: string;
 };

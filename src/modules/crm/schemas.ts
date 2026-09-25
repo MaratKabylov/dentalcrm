@@ -40,8 +40,49 @@ export const saveLeadSchema = z.object({
     z.email("Укажите корректный email.").max(254).optional(),
   ),
   sourceId: optionalUuid,
+  campaignId: optionalUuid,
   assignedTo: optionalUuid,
   notes: optionalText(5000),
+  utmSource: optionalText(120),
+  utmMedium: optionalText(120),
+  utmCampaign: optionalText(160),
+  utmContent: optionalText(160),
+  utmTerm: optionalText(160),
+  landingPage: z.preprocess(
+    emptyToUndefined,
+    z.url("Укажите корректный URL посадочной страницы.").max(500).optional(),
+  ),
+});
+
+export const saveMarketingCampaignSchema = z.object({
+  campaignId: optionalUuid,
+  sourceId: z.uuid("Выберите источник."),
+  branchId: optionalUuid,
+  name: z.string().trim().min(2, "Укажите название кампании.").max(160),
+  code: z.string().trim().toLowerCase().regex(
+    /^[a-z0-9_-]{2,60}$/,
+    "Используйте латинские буквы, цифры, дефис или подчёркивание.",
+  ),
+  utmSource: optionalText(120),
+  utmMedium: optionalText(120),
+  utmCampaign: optionalText(160),
+  budgetAmount: z.coerce.number().min(0).max(999999999999.99),
+  startsOn: z.iso.date("Укажите дату начала."),
+  endsOn: z.preprocess(emptyToUndefined, z.iso.date().optional()),
+  isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
+}).refine(
+  (value) => !value.endsOn || value.endsOn >= value.startsOn,
+  { path: ["endsOn"], message: "Дата окончания не может быть раньше даты начала." },
+);
+
+export const setMarketingCampaignActiveSchema = z.object({
+  campaignId: z.uuid(),
+  isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+
+export const convertLeadSchema = z.object({
+  leadId: z.uuid(),
+  patientId: z.uuid("Выберите пациента."),
 });
 
 export const savePatientSourceSchema = z.object({
@@ -77,6 +118,13 @@ export const leadFiltersSchema = z.object({
     emptyToUndefined,
     z.union([leadStatusSchema, z.literal("all")]).optional(),
   ).catch(undefined),
+  source: optionalUuid.catch(undefined),
+  branch: optionalUuid.catch(undefined),
+});
+
+export const marketingReportFiltersSchema = z.object({
+  from: z.iso.date().catch(""),
+  to: z.iso.date().catch(""),
   source: optionalUuid.catch(undefined),
   branch: optionalUuid.catch(undefined),
 });

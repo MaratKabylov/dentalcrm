@@ -17,6 +17,7 @@ export async function createPatient(
 ): Promise<FormActionState> {
   const context = await requirePermission("patients.create");
   const parsed = createPatientSchema.safeParse({
+    leadId: formData.get("leadId"),
     lastName: formData.get("lastName"),
     firstName: formData.get("firstName"),
     middleName: formData.get("middleName"),
@@ -39,7 +40,7 @@ export async function createPatient(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_patient", {
+  const patientArgs = {
     org_id: context.organization.id,
     patient_last_name: parsed.data.lastName,
     patient_first_name: parsed.data.firstName,
@@ -52,7 +53,10 @@ export async function createPatient(
     patient_primary_branch_id: parsed.data.primaryBranchId ?? null,
     patient_consent_personal_data: parsed.data.consentPersonalData,
     patient_consent_marketing: parsed.data.consentMarketing,
-  });
+  };
+  const { data, error } = parsed.data.leadId
+    ? await supabase.rpc("create_patient_from_lead", { ...patientArgs, target_lead_id: parsed.data.leadId })
+    : await supabase.rpc("create_patient", patientArgs);
 
   if (error) {
     const duplicateMessage = error.code === "23505"
@@ -67,5 +71,10 @@ export async function createPatient(
   }
 
   revalidatePath("/patients");
+  if (parsed.data.leadId) {
+    revalidatePath("/crm/leads");
+    revalidatePath(`/crm/leads/${parsed.data.leadId}`);
+    revalidatePath("/crm/marketing");
+  }
   redirect(`/patients/${patientId.data}`);
 }
