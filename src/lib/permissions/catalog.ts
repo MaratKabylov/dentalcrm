@@ -35,9 +35,34 @@ export const PERMISSIONS = [
 
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
+export const WRITE_PERMISSIONS = new Set<PermissionCode>([
+  "patients.create",
+  "patients.update",
+  "patients.delete",
+  "appointments.manage",
+  "clinical.write",
+  "treatment_plan.manage",
+  "finance.manage",
+  "cashdesk.manage",
+  "crm.manage",
+  "tasks.manage",
+  "recalls.manage",
+  "communications.manage",
+  "automation.manage",
+  "documents.manage",
+  "inventory.manage",
+  "payroll.manage",
+  "settings.manage",
+  "users.manage",
+]);
+
 export function hasPermission(
   permissions: ReadonlySet<string>,
   permission: PermissionCode,
 ) {
   return permissions.has(permission);
+}
+
+export function isWritePermission(permission: PermissionCode) {
+  return WRITE_PERMISSIONS.has(permission);
 }

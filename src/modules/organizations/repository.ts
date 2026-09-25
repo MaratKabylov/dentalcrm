@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { AppError } from "@/lib/errors/app-error";
-import { hasPermission } from "@/lib/permissions/catalog";
+import { hasPermission, isWritePermission } from "@/lib/permissions/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/modules/auth/repository";
 import type {
@@ -19,6 +19,8 @@ const organizationSchema = z.object({
   currency: z.string(),
   locale: z.string(),
   status: z.string(),
+  access_until: z.string(),
+  suspension_reason: z.string().nullable(),
 });
 
 const membershipRowSchema = z.object({
@@ -47,7 +49,7 @@ export async function listCurrentUserMemberships(userId?: string): Promise<
     .from("organization_members")
     .select(
       `id, organization_id,
-       organizations!inner(id, name, timezone, currency, locale, status),
+       organizations!inner(id, name, timezone, currency, locale, status, access_until, suspension_reason),
        member_roles(roles!inner(code, name, role_permissions(permissions!inner(code))))`,
     )
     .eq("user_id", resolvedUserId)
@@ -80,9 +82,35 @@ export async function listCurrentUserMemberships(userId?: string): Promise<
       ),
     );
 
+    const organization = parsed.data.organizations;
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: organization.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const accessState = organization.status === "archived"
+      ? "archived"
+      : organization.status === "suspended"
+        ? "suspended"
+        : organization.access_until < today
+          ? "expired"
+          : "active";
+
     return {
       membershipId: parsed.data.id,
-      organization: parsed.data.organizations,
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        timezone: organization.timezone,
+        currency: organization.currency,
+        locale: organization.locale,
+        status: organization.status,
+        accessUntil: organization.access_until,
+        accessState,
+        suspensionReason: organization.suspension_reason,
+        isReadOnly: accessState !== "active",
+      },
       roles,
       permissions,
     };
@@ -103,7 +131,9 @@ export async function getOrganizationContext(
 
   return {
     ...selected,
-    can: (permission) => hasPermission(selected.permissions, permission),
+    can: (permission) =>
+      hasPermission(selected.permissions, permission) &&
+      (!selected.organization.isReadOnly || !isWritePermission(permission)),
   };
 }
 

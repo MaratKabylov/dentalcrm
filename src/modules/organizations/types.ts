@@ -7,6 +7,10 @@ export type OrganizationSummary = {
   currency: string;
   locale: string;
   status: string;
+  accessUntil: string;
+  accessState: "active" | "expired" | "suspended" | "archived";
+  suspensionReason: string | null;
+  isReadOnly: boolean;
 };
 
 export type OrganizationMembership = {

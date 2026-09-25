@@ -20,6 +20,18 @@ Multi-tenant operating system for dental clinics in Kazakhstan. **Phases 0–4**
 
 Create the first Auth user in Supabase Studio. After login, `/onboarding` atomically creates the organization, its first branch, an active membership and the owner role.
 
+### Bootstrap the first platform administrator
+
+After applying migrations, assign the platform-wide role from the Supabase SQL editor (replace the email):
+
+```sql
+update public.profiles
+set platform_role = 'super_admin'
+where id = (select id from auth.users where email = 'admin@example.com');
+```
+
+The administrator workspace is available at `/admin/organizations`. New and migrated organizations receive 30 days of write access by default; a super administrator can then set the exact inclusive end date or switch an organization to read-only mode.
+
 ## Security model
 
 - Browser code receives only the public Supabase URL and anon key.
@@ -28,6 +40,7 @@ Create the first Auth user in Supabase Studio. After login, `/onboarding` atomic
 - Permission checks are backed by `current_user_has_permission`, a narrowly scoped `security definer` function.
 - Organization bootstrapping runs in one database function and writes an audit record.
 - System roles cannot be edited through authenticated-client policies; custom roles are organization-scoped.
+- Platform administrator access is a separate profile role and every organization access change is recorded in an immutable platform audit log.
 - Patient records are tenant-scoped, protected by permission-aware RLS and written through audited database functions.
 - Appointment conflicts are blocked in PostgreSQL; every status transition is recorded and patient arrival emits a targeted realtime notification.
 

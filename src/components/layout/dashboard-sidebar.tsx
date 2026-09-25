@@ -15,6 +15,7 @@ import {
   MessagesSquare,
   BellRing,
   Settings2,
+  ShieldCheck,
   Stethoscope,
   Target,
   UsersRound,
@@ -50,6 +51,7 @@ export function DashboardSidebar({
   canReadDocuments,
   canReadInventory,
   canReadReports,
+  canAccessAdmin,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
@@ -61,6 +63,7 @@ export function DashboardSidebar({
   canReadDocuments: boolean;
   canReadInventory: boolean;
   canReadReports: boolean;
+  canAccessAdmin: boolean;
 }) {
   const pathname = usePathname();
 
@@ -102,6 +105,11 @@ export function DashboardSidebar({
           );
         })}
       </nav>
+      {canAccessAdmin && (
+        <Link href="/admin/organizations" className="mb-1 flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)]">
+          <ShieldCheck className="size-[18px]" />Администрирование
+        </Link>
+      )}
       <Link href="/settings/organization" className="flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-[var(--muted)] hover:bg-[var(--surface-muted)]">
         <Settings2 className="size-[18px]" />Настройки
       </Link>
