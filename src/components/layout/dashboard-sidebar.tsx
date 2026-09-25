@@ -36,7 +36,7 @@ const navItems = [
   { label: "Документы", href: "/documents", icon: FileCheck2, enabled: true },
   { label: "Финансы", href: "/finance", icon: CircleDollarSign, enabled: true },
   { label: "Склад", href: "/inventory", icon: Boxes, enabled: true },
-  { label: "Аналитика", href: "/analytics", icon: BarChart3, enabled: false },
+  { label: "Аналитика", href: "/analytics", icon: BarChart3, enabled: true },
 ];
 
 export function DashboardSidebar({
@@ -49,6 +49,7 @@ export function DashboardSidebar({
   canReadAutomation,
   canReadDocuments,
   canReadInventory,
+  canReadReports,
 }: {
   canReadClinical: boolean;
   canReadFinance: boolean;
@@ -59,6 +60,7 @@ export function DashboardSidebar({
   canReadAutomation: boolean;
   canReadDocuments: boolean;
   canReadInventory: boolean;
+  canReadReports: boolean;
 }) {
   const pathname = usePathname();
 
@@ -78,6 +80,7 @@ export function DashboardSidebar({
           if (item.href === "/crm/reminders" && !canReadAutomation) return null;
           if (item.href === "/documents" && !canReadDocuments) return null;
           if (item.href === "/inventory" && !canReadInventory) return null;
+          if (item.href === "/analytics" && !canReadReports) return null;
           if (!item.enabled) {
             return (
               <div key={item.href} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-xl px-3 text-sm text-[#9aaca7]">
@@ -103,7 +106,7 @@ export function DashboardSidebar({
         <Settings2 className="size-[18px]" />Настройки
       </Link>
       <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        <span className="font-semibold text-[var(--foreground)]">Phase 6</span><br />Склад и материалы
+        <span className="font-semibold text-[var(--foreground)]">Phase 7</span><br />Аналитика и вознаграждения
       </div>
     </aside>
   );

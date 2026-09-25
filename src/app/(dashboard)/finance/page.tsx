@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BadgePercent, Banknote, ChevronRight, CircleDollarSign, FileCheck2, Landmark, ReceiptText } from "lucide-react";
+import { AlertTriangle, BadgePercent, Banknote, ChevronRight, CircleDollarSign, Coins, FileCheck2, Landmark, ReceiptText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,7 +51,7 @@ export default async function FinancePage() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[var(--brand)]">Финансовый контур</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Счета пациентов</h1><p className="mt-2 text-sm text-[var(--muted)]">Счета формируются из фактически выполненных процедур закрытого приёма.</p></div>
-        <div className="flex flex-wrap gap-2"><Link href="/finance/cash"><Button variant="secondary"><Landmark className="size-4" />Кассы</Button></Link><Link href="/finance/payments"><Button variant="secondary"><Banknote className="size-4" />Платежи</Button></Link><Link href="/finance/debts"><Button variant="secondary"><AlertTriangle className="size-4" />Долги</Button></Link><Link href="/finance/discounts"><Button variant="secondary"><BadgePercent className="size-4" />Скидки</Button></Link></div>
+        <div className="flex flex-wrap gap-2"><Link href="/finance/cash"><Button variant="secondary"><Landmark className="size-4" />Кассы</Button></Link><Link href="/finance/payments"><Button variant="secondary"><Banknote className="size-4" />Платежи</Button></Link><Link href="/finance/debts"><Button variant="secondary"><AlertTriangle className="size-4" />Долги</Button></Link><Link href="/finance/discounts"><Button variant="secondary"><BadgePercent className="size-4" />Скидки</Button></Link>{context.can("payroll.read") && <Link href="/finance/payroll"><Button variant="secondary"><Coins className="size-4" />Вознаграждения</Button></Link>}</div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

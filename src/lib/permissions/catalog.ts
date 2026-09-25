@@ -26,6 +26,8 @@ export const PERMISSIONS = [
   "inventory.read",
   "inventory.manage",
   "reports.read",
+  "payroll.read",
+  "payroll.manage",
   "settings.manage",
   "users.manage",
   "audit.read",

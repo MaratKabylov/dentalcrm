@@ -1,52 +1,22 @@
-import { ArrowUpRight, Building2, CheckCircle2, ShieldCheck, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, BarChart3, Boxes, CalendarDays, CircleDollarSign, Megaphone, Stethoscope, UsersRound } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { getOrganizationContext } from "@/modules/organizations/repository";
 
-const foundationItems = [
-  "Организации и филиалы",
-  "Изоляция данных через RLS",
-  "Роли и точечные разрешения",
-  "Защищённые серверные действия",
-];
-
 export default async function DashboardPage() {
   const context = await getOrganizationContext();
   if (!context) return null;
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-7">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm font-semibold text-[var(--brand)]">Рабочее пространство</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">{context.organization.name}</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Регистратура готова, начат клинический контур работы врача.</p>
-        </div>
-        <div className="inline-flex items-center gap-2 self-start rounded-full bg-[var(--brand-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-dark)]">
-          <span className="size-1.5 rounded-full bg-[var(--brand)]" />Phase 2 active
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm text-[var(--muted)]">Организация</p><p className="mt-2 text-xl font-semibold">Активна</p></div><div className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-[var(--brand)]"><Building2 className="size-5" /></div></div></Card>
-        <Card className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm text-[var(--muted)]">Ваши роли</p><p className="mt-2 text-xl font-semibold">{context.roles.length}</p></div><div className="grid size-10 place-items-center rounded-xl bg-sky-50 text-sky-700"><UsersRound className="size-5" /></div></div></Card>
-        <Card className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm text-[var(--muted)]">Разрешения</p><p className="mt-2 text-xl font-semibold">{context.permissions.size}</p></div><div className="grid size-10 place-items-center rounded-xl bg-amber-50 text-amber-700"><ShieldCheck className="size-5" /></div></div></Card>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-        <Card className="overflow-hidden">
-          <div className="border-b p-5"><h2 className="font-semibold">Фундамент платформы</h2><p className="mt-1 text-sm text-[var(--muted)]">Компоненты, на которых будут строиться следующие модули.</p></div>
-          <div className="grid gap-px bg-[var(--border)] sm:grid-cols-2">
-            {foundationItems.map((item) => <div key={item} className="flex items-center gap-3 bg-white p-5 text-sm font-medium"><CheckCircle2 className="size-[18px] text-[var(--brand)]" />{item}</div>)}
-          </div>
-        </Card>
-        <Card className="bg-[#123d35] p-6 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Клинический этап</p>
-          <h2 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Врачебные приёмы</h2>
-          <p className="mt-3 text-sm leading-6 text-emerald-50/70">Врач открывает приём из календаря, ведёт клиническую запись и завершает визит в едином потоке.</p>
-          <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Клинический контур подключён <ArrowUpRight className="size-4" /></div>
-        </Card>
-      </div>
-    </div>
-  );
+  const modules = [
+    { permission: "appointments.read", href: "/calendar", title: "Календарь", text: "Записи и загрузка врачей", icon: CalendarDays },
+    { permission: "patients.read", href: "/patients", title: "Пациенты", text: "Карточки и история лечения", icon: UsersRound },
+    { permission: "clinical.read", href: "/clinical", title: "Лечение", text: "Приёмы и планы лечения", icon: Stethoscope },
+    { permission: "crm.read", href: "/crm", title: "CRM", text: "Лиды и коммуникации", icon: Megaphone },
+    { permission: "finance.read", href: "/finance", title: "Финансы", text: "Счета, оплаты и долги", icon: CircleDollarSign },
+    { permission: "inventory.read", href: "/inventory", title: "Склад", text: "Остатки и материалы", icon: Boxes },
+  ].filter((item) => context.permissions.has(item.permission));
+  return <div className="mx-auto max-w-7xl space-y-7"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-semibold text-[var(--brand)]">Рабочее пространство</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">{context.organization.name}</h1><p className="mt-2 text-sm text-[var(--muted)]">Единый контур клиники: от записи пациента до управленческого отчёта.</p></div><div className="inline-flex items-center gap-2 self-start rounded-full bg-[var(--brand-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-dark)]"><span className="size-1.5 rounded-full bg-[var(--brand)]" />Phase 7 active</div></div>
+    {context.can("reports.read") && <Link href="/analytics" className="group block rounded-2xl bg-[#123d35] p-6 text-white"><div className="flex items-start justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">Управленческий центр</p><h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em]">Аналитика клиники</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/70">Выручка, оплаты, загрузка врачей, конверсия регистратуры, источники пациентов и расход материалов.</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-100">Открыть дашборд <ArrowUpRight className="size-4 transition group-hover:translate-x-0.5" /></span></div><BarChart3 className="size-8 text-emerald-200" /></div></Link>}
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{modules.map(({ href, title, text, icon: Icon }) => <Link key={href} href={href}><Card className="h-full p-5 transition hover:border-[var(--brand)]"><Icon className="size-6 text-[var(--brand)]" /><h2 className="mt-4 font-semibold">{title}</h2><p className="mt-1 text-sm text-[var(--muted)]">{text}</p></Card></Link>)}</div>
+  </div>;
 }

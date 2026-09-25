@@ -1,0 +1,16 @@
+import { Card } from "@/components/ui/card";
+import { AnalyticsFilterForm } from "@/modules/analytics/analytics-filter-form";
+import { AnalyticsNav } from "@/modules/analytics/analytics-nav";
+import { getInventoryAnalytics, listAnalyticsFilters } from "@/modules/analytics/repository";
+import { parseAnalyticsFilters } from "@/modules/analytics/schemas";
+import { getOrganizationContext } from "@/modules/organizations/repository";
+
+export default async function InventoryAnalyticsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const parsed = parseAnalyticsFilters(await searchParams); const filters = { from: parsed.from, to: parsed.to, branchId: parsed.branch };
+  const [rows, options, context] = await Promise.all([getInventoryAnalytics(filters), listAnalyticsFilters(), getOrganizationContext()]); if (!context) return null;
+  const money = new Intl.NumberFormat("ru-KZ", { style: "currency", currency: context.organization.currency, maximumFractionDigits: 0 });
+  const totals = rows.reduce((result, row) => ({ cost: result.cost + row.consumedCost, value: result.value + row.currentValue, writeOff: result.writeOff + row.writtenOffQuantity }), { cost: 0, value: 0, writeOff: 0 });
+  return <div className="mx-auto max-w-7xl space-y-6"><div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="text-sm font-semibold text-[var(--brand)]">Складская аналитика</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em]">Расход материалов</h1></div><AnalyticsNav /></div><AnalyticsFilterForm filters={filters} options={options} /><div className="grid gap-4 md:grid-cols-3"><Card className="p-5"><p className="text-sm text-[var(--muted)]">Расход за период</p><p className="mt-2 text-2xl font-semibold">{money.format(totals.cost)}</p></Card><Card className="p-5"><p className="text-sm text-[var(--muted)]">Текущие остатки</p><p className="mt-2 text-2xl font-semibold">{money.format(totals.value)}</p></Card><Card className="p-5"><p className="text-sm text-[var(--muted)]">Позиций со списаниями</p><p className="mt-2 text-2xl font-semibold">{rows.filter((row) => row.writtenOffQuantity > 0).length}</p></Card></div>
+    <Card className="overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-[var(--surface-muted)] text-xs text-[var(--muted)]"><tr>{["Материал", "Расход", "Стоимость расхода", "Списано", "Остаток", "Стоимость остатка", "Запас, дней"].map((item) => <th key={item} className="px-4 py-3 font-medium">{item}</th>)}</tr></thead><tbody className="divide-y">{rows.map((row) => <tr key={row.itemId}><td className="px-4 py-4"><p className="font-semibold">{row.sku} — {row.itemName}</p><p className="text-xs text-[var(--muted)]">{row.unit}</p></td><td className="px-4 py-4">{row.consumedQuantity}</td><td className="px-4 py-4 font-semibold">{money.format(row.consumedCost)}</td><td className="px-4 py-4">{row.writtenOffQuantity}</td><td className="px-4 py-4">{row.currentQuantity}</td><td className="px-4 py-4">{money.format(row.currentValue)}</td><td className="px-4 py-4">{row.daysOfStock ?? "—"}</td></tr>)}</tbody></table></div></Card>
+  </div>;
+}
