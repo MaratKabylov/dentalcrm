@@ -503,7 +503,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select 'item', item.id, item.category_id, item.sku, item.name, item.unit, item.min_stock, item.is_active, null
   from public.inventory_items item where item.organization_id = org_id
     and public.current_user_has_permission(org_id, 'inventory.read')
-  order by entity_type, name;
+  order by 1, 5;
 $$;
 
 create or replace function public.list_inventory_branches(org_id uuid)
