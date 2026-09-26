@@ -10,6 +10,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         canManageUsers={context?.can("users.manage") ?? false}
         canManageSettings={context?.can("settings.manage") ?? false}
         canManageBranches={context?.can("branches.manage") ?? false}
+        canManageDirectories={(context?.can("directories.manage_global") ?? false) || (context?.can("directories.manage_branch") ?? false)}
       />
       {children}
     </div>

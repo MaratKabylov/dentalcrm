@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, MapPinned, Stethoscope, UsersRound } from "lucide-react";
+import { BookOpenText, Building2, MapPinned, Stethoscope, UsersRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/settings/organization", label: "Клиника", icon: Building2, permission: "organization" },
   { href: "/settings/branches", label: "Филиалы", icon: MapPinned, permission: "branches" },
+  { href: "/settings/directories", label: "Справочники", icon: BookOpenText, permission: "directories" },
   { href: "/settings/users", label: "Пользователи", icon: UsersRound, permission: "users" },
   { href: "/settings/doctors", label: "Врачи и графики", icon: Stethoscope, permission: "settings" },
 ] as const;
@@ -17,10 +18,12 @@ export function SettingsNav({
   canManageUsers,
   canManageSettings,
   canManageBranches,
+  canManageDirectories,
 }: {
   canManageUsers: boolean;
   canManageSettings: boolean;
   canManageBranches: boolean;
+  canManageDirectories: boolean;
 }) {
   const pathname = usePathname();
 
@@ -30,6 +33,7 @@ export function SettingsNav({
         if (item.permission === "users" && !canManageUsers) return null;
         if (item.permission === "settings" && !canManageSettings) return null;
         if (item.permission === "branches" && !canManageBranches) return null;
+        if (item.permission === "directories" && !canManageDirectories) return null;
         const Icon = item.icon;
         const active = pathname.startsWith(item.href);
         return (
