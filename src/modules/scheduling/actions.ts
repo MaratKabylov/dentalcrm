@@ -2,14 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import type { FormActionState } from "@/modules/auth/types";
-import { requirePermission } from "@/modules/organizations/repository";
+import { requireBranchPermission, requirePermission } from "@/modules/organizations/repository";
+import { branchWorkingHoursSchema } from "@/modules/branches/schemas";
 import {
   appointmentStatusChangeSchema,
   createAppointmentSchema,
   createDoctorSchema,
+  doctorBranchAssignmentSchema,
+  doctorBranchStatusSchema,
+  doctorScheduleExceptionSchema,
+  doctorScheduleExceptionStatusSchema,
 } from "@/modules/scheduling/schemas";
 
 function formError(message: string): FormActionState {
@@ -101,4 +107,130 @@ export async function changeAppointmentStatus(formData: FormData) {
   });
   if (error) throw new Error("Не удалось изменить статус записи.");
   revalidatePath("/calendar");
+}
+
+export async function saveDoctorBranchAssignment(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const parsed = doctorBranchAssignmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: "Проверьте настройки врача в филиале.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+  const schedule = Array.from({ length: 7 }, (_, index) => {
+    const weekday = index + 1;
+    const isWorking = formData.get(`working-${weekday}`) === "on";
+    return {
+      weekday,
+      isWorking,
+      startTime: isWorking ? String(formData.get(`start-${weekday}`) ?? "") : null,
+      endTime: isWorking ? String(formData.get(`end-${weekday}`) ?? "") : null,
+    };
+  });
+  const parsedSchedule = branchWorkingHoursSchema.safeParse(schedule);
+  const serviceIds = formData.getAll("serviceId").map(String);
+  if (!parsedSchedule.success || serviceIds.some((id) => !z.string().uuid().safeParse(id).success)) {
+    return { status: "error", message: "Проверьте график и доступные услуги." };
+  }
+  const context = await requireBranchPermission("settings.manage", parsed.data.branchId);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_doctor_branch_assignment", {
+    org_id: context.organization.id,
+    target_doctor_id: parsed.data.doctorId,
+    target_branch_id: parsed.data.branchId,
+    doctor_room_name: parsed.data.roomName,
+    duration_minutes: parsed.data.durationMinutes,
+    allow_online_booking: parsed.data.acceptsOnlineBooking,
+    schedule: parsedSchedule.data,
+    allowed_service_ids: serviceIds,
+  });
+  if (error) {
+    if (error.message.includes("overlap another branch")) {
+      return { status: "error", message: "График пересекается со сменой врача в другом филиале." };
+    }
+    return formError("Не удалось сохранить настройки врача в филиале.");
+  }
+  revalidatePath(`/settings/doctors/${parsed.data.doctorId}`);
+  revalidatePath("/settings/doctors");
+  revalidatePath("/calendar");
+  return { status: "success", message: "Настройки филиала сохранены." };
+}
+
+export async function setDoctorBranchAssignmentActive(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const parsed = doctorBranchStatusSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return formError("Назначение врача не найдено.");
+  const context = await requireBranchPermission("settings.manage", parsed.data.branchId);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_doctor_branch_assignment_active", {
+    org_id: context.organization.id,
+    target_doctor_id: parsed.data.doctorId,
+    target_branch_id: parsed.data.branchId,
+    target_is_active: parsed.data.isActive,
+  });
+  if (error) {
+    if (error.message.includes("future appointments")) {
+      return formError("Сначала перенесите или отмените будущие записи врача в этом филиале.");
+    }
+    return formError("Не удалось изменить статус назначения.");
+  }
+  revalidatePath(`/settings/doctors/${parsed.data.doctorId}`);
+  revalidatePath("/settings/doctors");
+  revalidatePath("/calendar");
+  return { status: "success", message: parsed.data.isActive ? "Назначение восстановлено." : "Назначение архивировано." };
+}
+
+export async function saveDoctorScheduleException(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const parsed = doctorScheduleExceptionSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: "Проверьте исключение расписания.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+  const context = await requireBranchPermission("settings.manage", parsed.data.branchId);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_doctor_schedule_exception", {
+    org_id: context.organization.id,
+    target_doctor_id: parsed.data.doctorId,
+    target_branch_id: parsed.data.branchId,
+    target_date: parsed.data.date,
+    exception_type: parsed.data.type,
+    exception_start_time: parsed.data.startTime,
+    exception_end_time: parsed.data.endTime,
+    exception_reason: parsed.data.reason || null,
+  });
+  if (error) return formError("Не удалось добавить исключение расписания.");
+  revalidatePath(`/settings/doctors/${parsed.data.doctorId}`);
+  revalidatePath("/calendar");
+  return { status: "success", message: "Исключение добавлено." };
+}
+
+export async function setDoctorScheduleExceptionActive(
+  _state: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const parsed = doctorScheduleExceptionStatusSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return formError("Исключение не найдено.");
+  const context = await requirePermission("settings.manage");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_doctor_schedule_exception_active", {
+    org_id: context.organization.id,
+    target_exception_id: parsed.data.exceptionId,
+    target_is_active: parsed.data.isActive,
+  });
+  if (error) return formError("Не удалось изменить исключение.");
+  revalidatePath(`/settings/doctors/${parsed.data.doctorId}`);
+  revalidatePath("/calendar");
+  return { status: "success", message: parsed.data.isActive ? "Исключение восстановлено." : "Исключение архивировано." };
 }

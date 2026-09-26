@@ -40,3 +40,45 @@ export const appointmentStatusChangeSchema = z.object({
     "rescheduled",
   ]),
 });
+
+export const doctorBranchAssignmentSchema = z.object({
+  doctorId: z.uuid(),
+  branchId: z.uuid("Выберите филиал."),
+  roomName: z.string().trim().min(1, "Укажите кабинет.").max(100),
+  durationMinutes: z.coerce.number().int().min(5).max(480),
+  acceptsOnlineBooking: z.preprocess(
+    (value) => value === "on" || value === "true",
+    z.boolean(),
+  ),
+});
+
+export const doctorBranchStatusSchema = z.object({
+  doctorId: z.uuid(),
+  branchId: z.uuid(),
+  isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+
+export const doctorScheduleExceptionSchema = z.object({
+  doctorId: z.uuid(),
+  branchId: z.uuid("Выберите филиал."),
+  date: z.iso.date("Укажите дату."),
+  type: z.enum(["day_off", "sick_leave", "vacation", "custom_hours", "blocked"]),
+  startTime: z.preprocess((value) => value === "" ? null : value, timeSchema.nullable()),
+  endTime: z.preprocess((value) => value === "" ? null : value, timeSchema.nullable()),
+  reason: z.string().trim().max(500).optional(),
+}).superRefine((value, context) => {
+  if (value.type !== "custom_hours") return;
+  if (!value.startTime || !value.endTime || value.endTime <= value.startTime) {
+    context.addIssue({
+      code: "custom",
+      path: ["endTime"],
+      message: "Для особых часов укажите корректный интервал.",
+    });
+  }
+});
+
+export const doctorScheduleExceptionStatusSchema = z.object({
+  doctorId: z.uuid(),
+  exceptionId: z.uuid(),
+  isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
+});

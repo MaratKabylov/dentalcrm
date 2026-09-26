@@ -13,7 +13,7 @@ export default async function DoctorsSettingsPage({
 }) {
   const [{ created }, doctors, context] = await Promise.all([
     searchParams,
-    listDoctors(),
+    listDoctors(true),
     getOrganizationContext(),
   ]);
 
@@ -37,7 +37,8 @@ export default async function DoctorsSettingsPage({
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {doctors.map((doctor) => (
-            <Card key={doctor.id} className="p-5">
+            <Link key={doctor.assignmentId} href={`/settings/doctors/${doctor.id}`} className="group">
+            <Card className="h-full p-5 transition group-hover:-translate-y-0.5 group-hover:border-[var(--brand)] group-hover:shadow-md">
               <div className="flex items-start gap-4">
                 <span className="mt-1 size-3 shrink-0 rounded-full" style={{ backgroundColor: doctor.color }} />
                 <div>
@@ -50,6 +51,7 @@ export default async function DoctorsSettingsPage({
                 </div>
               </div>
             </Card>
+            </Link>
           ))}
         </div>
       )}
