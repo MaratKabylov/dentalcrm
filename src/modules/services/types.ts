@@ -16,6 +16,11 @@ export type TreatmentService = {
   costPrice: number | null;
   isActive: boolean;
   vatRate: number | null;
+  scope: "organization" | "branch";
+  branchId: string | null;
+  branchName: string | null;
+  networkPrice: number | null;
+  priceSource: "organization" | "branch";
 };
 
 export type ServiceCatalog = {

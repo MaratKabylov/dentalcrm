@@ -6,7 +6,8 @@ import { Clock3, LoaderCircle, Pencil, Plus, Power, Save, Tags } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { initialFormState } from "@/modules/auth/types";
-import { saveService, saveServiceCategory, setServiceActive } from "@/modules/services/actions";
+import { saveService, saveServiceBranchOverride, saveServiceCategory, setServiceActive } from "@/modules/services/actions";
+import type { BranchAccessSummary } from "@/modules/organizations/types";
 import type { ServiceCategory, TreatmentService } from "@/modules/services/types";
 
 function FieldError({ errors }: { errors?: string[] }) {
@@ -90,22 +91,41 @@ function CategoryForm({
 function ServiceForm({
   service,
   categories,
+  branches,
   onCancel,
 }: {
   service: TreatmentService | null;
   categories: ServiceCategory[];
+  branches: BranchAccessSummary[];
   onCancel: () => void;
 }) {
   const [state, formAction, pending] = useActionState(saveService, initialFormState);
+  const [scope, setScope] = useState<"organization" | "branch">(service?.scope ?? "organization");
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={formAction} className="space-y-5 rounded-2xl bg-[var(--surface-muted)] p-4 sm:p-5">
       {service && <input type="hidden" name="serviceId" value={service.id} />}
+      {service && <input type="hidden" name="scope" value={service.scope} />}
+      {service?.branchId && <input type="hidden" name="branchId" value={service.branchId} />}
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-semibold">{service ? "Изменить услугу" : "Новая услуга"}</h3>
         {service && <button type="button" onClick={onCancel} className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)]">Отмена</button>}
       </div>
       <div className="grid gap-4 md:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm font-medium">Область действия *</span>
+          <select name={service ? undefined : "scope"} value={scope} onChange={(event) => setScope(event.target.value as "organization" | "branch")} disabled={Boolean(service)} className="h-11 w-full rounded-xl border bg-white px-3.5 text-sm">
+            <option value="organization">Вся сеть</option><option value="branch">Один филиал</option>
+          </select>
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-medium">Филиал</span>
+          <select name={service ? undefined : "branchId"} defaultValue={service?.branchId ?? ""} disabled={scope !== "branch" || Boolean(service)} className="h-11 w-full rounded-xl border bg-white px-3.5 text-sm disabled:bg-slate-100">
+            <option value="">Выберите филиал</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </select>
+          <FieldError errors={state.fieldErrors?.branchId} />
+        </label>
         <label className="space-y-2">
           <span className="text-sm font-medium">Категория *</span>
           <select name="categoryId" defaultValue={service?.categoryId ?? ""} className="h-11 w-full rounded-xl border bg-white px-3.5 text-sm" required>
@@ -130,9 +150,13 @@ function ServiceForm({
           <FieldError errors={state.fieldErrors?.durationMinutes} />
         </label>
         <label className="space-y-2">
-          <span className="text-sm font-medium">Базовая цена</span>
+          <span className="text-sm font-medium">{scope === "organization" ? "Сетевая цена" : "Цена филиала"}</span>
           <Input name="basePrice" type="number" min={0} step="0.01" defaultValue={service?.basePrice ?? 0} required />
           <FieldError errors={state.fieldErrors?.basePrice} />
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-medium">Цена действует с</span>
+          <Input name="priceValidFrom" type="date" defaultValue={today} required />
         </label>
         <label className="space-y-2">
           <span className="text-sm font-medium">Себестоимость</span>
@@ -151,15 +175,25 @@ function ServiceForm({
   );
 }
 
+function BranchOverrideForm({ service, branches }: { service: TreatmentService; branches: BranchAccessSummary[] }) {
+  const [state, action, pending] = useActionState(saveServiceBranchOverride, initialFormState);
+  const today = new Date().toISOString().slice(0, 10);
+  return <details className="mt-3 rounded-xl bg-[var(--surface-muted)] p-3"><summary className="cursor-pointer text-xs font-semibold text-[var(--brand-dark)]">Настроить для филиала</summary><form action={action} className="mt-3 grid gap-3 sm:grid-cols-2"><input type="hidden" name="serviceId" value={service.id} /><label className="space-y-1"><span className="text-xs text-[var(--muted)]">Филиал</span><select name="branchId" className="h-10 w-full rounded-xl border bg-white px-3 text-sm" required><option value="">Выберите филиал</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label><label className="flex items-end gap-2 pb-2 text-sm"><input name="isAvailable" type="checkbox" defaultChecked />Доступна</label><label className="space-y-1"><span className="text-xs text-[var(--muted)]">Длительность, если отличается</span><Input name="durationMinutes" type="number" min={5} max={1440} step={5} /></label><label className="space-y-1"><span className="text-xs text-[var(--muted)]">Цена, если отличается</span><Input name="price" type="number" min={0} step="0.01" /></label><label className="space-y-1"><span className="text-xs text-[var(--muted)]">Цена действует с</span><Input name="priceValidFrom" type="date" defaultValue={today} required /></label><div className="flex items-end"><Button disabled={pending} variant="secondary">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}Сохранить для филиала</Button></div></form>{state.message && <p className={state.status === "error" ? "mt-2 text-xs text-[var(--danger)]" : "mt-2 text-xs text-emerald-700"}>{state.message}</p>}</details>;
+}
+
 export function ServiceCatalogManager({
   categories,
   services,
-  canManage,
+  canManageGlobal,
+  canManageBranch,
+  branches,
   currency,
 }: {
   categories: ServiceCategory[];
   services: TreatmentService[];
-  canManage: boolean;
+  canManageGlobal: boolean;
+  canManageBranch: boolean;
+  branches: BranchAccessSummary[];
   currency: string;
 }) {
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(null);
@@ -175,19 +209,19 @@ export function ServiceCatalogManager({
             {categories.length === 0 ? <p className="rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-[var(--muted)]">Категорий пока нет.</p> : categories.map((category) => (
               <div key={category.id} className="flex items-center gap-3 rounded-xl border px-3 py-2.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{categoryPath(category, categories)}</span>
-                {canManage && <button type="button" onClick={() => setEditingCategory(category)} className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)]" aria-label={`Изменить категорию ${category.name}`}><Pencil className="size-3.5" /></button>}
+                {canManageGlobal && <button type="button" onClick={() => setEditingCategory(category)} className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)]" aria-label={`Изменить категорию ${category.name}`}><Pencil className="size-3.5" /></button>}
               </div>
             ))}
           </div>
         </div>
-        {canManage && <CategoryForm key={editingCategory?.id ?? "new-category"} category={editingCategory} categories={categories} onCancel={() => setEditingCategory(null)} />}
+        {canManageGlobal && <CategoryForm key={editingCategory?.id ?? "new-category"} category={editingCategory} categories={categories} onCancel={() => setEditingCategory(null)} />}
       </div>
 
       <div className="space-y-5">
         <div className="rounded-2xl border bg-white p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div><h2 className="font-semibold">Услуги</h2><p className="mt-1 text-xs text-[var(--muted)]">{services.length} позиций в каталоге.</p></div>
-            {canManage && editingService && <Button variant="secondary" onClick={() => setEditingService(null)}><Plus className="size-4" />Новая услуга</Button>}
+            {(canManageGlobal || canManageBranch) && editingService && <Button variant="secondary" onClick={() => setEditingService(null)}><Plus className="size-4" />Новая услуга</Button>}
           </div>
           <div className="mt-4 space-y-3">
             {services.length === 0 ? <p className="rounded-xl bg-[var(--surface-muted)] p-6 text-center text-sm text-[var(--muted)]">Добавьте первую категорию и услугу.</p> : services.map((service) => {
@@ -196,18 +230,19 @@ export function ServiceCatalogManager({
                 <div key={service.id} className={service.isActive ? "rounded-xl border p-4" : "rounded-xl border bg-[var(--surface-muted)] p-4 opacity-70"}>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-bold">{service.code}</span><p className="font-semibold">{service.name}</p>{!service.isActive && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold">Неактивна</span>}</div>
+                      <div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-bold">{service.code}</span><p className="font-semibold">{service.name}</p><span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">{service.scope === "organization" ? "Вся сеть" : service.branchName}</span>{!service.isActive && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold">Неактивна</span>}</div>
                       <p className="mt-1 text-xs text-[var(--muted)]">{category ? categoryPath(category, categories) : "Без категории"}</p>
-                      <div className="mt-3 flex flex-wrap gap-3 text-xs"><span className="font-semibold text-[var(--brand-dark)]">{money.format(service.basePrice)}</span><span className="inline-flex items-center gap-1 text-[var(--muted)]"><Clock3 className="size-3.5" />{service.durationMinutes} мин.</span>{service.vatRate !== null && <span className="text-[var(--muted)]">НДС {service.vatRate}%</span>}</div>
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs"><span className="font-semibold text-[var(--brand-dark)]">{money.format(service.basePrice)}</span><span className="text-[var(--muted)]">{service.priceSource === "branch" ? "Цена филиала" : "Сетевая цена"}</span><span className="inline-flex items-center gap-1 text-[var(--muted)]"><Clock3 className="size-3.5" />{service.durationMinutes} мин.</span>{service.vatRate !== null && <span className="text-[var(--muted)]">НДС {service.vatRate}%</span>}</div>
+                      {service.scope === "organization" && canManageBranch && <BranchOverrideForm service={service} branches={branches} />}
                     </div>
-                    {canManage && <div className="flex gap-1"><button type="button" onClick={() => setEditingService(service)} className="grid size-9 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)]" aria-label={`Изменить услугу ${service.name}`}><Pencil className="size-4" /></button><form action={setServiceActive}><input type="hidden" name="serviceId" value={service.id} /><input type="hidden" name="isActive" value={service.isActive ? "false" : "true"} /><button className="grid size-9 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)]" aria-label={service.isActive ? `Отключить услугу ${service.name}` : `Включить услугу ${service.name}`}><Power className="size-4" /></button></form></div>}
+                    {((service.scope === "organization" && canManageGlobal) || (service.scope === "branch" && canManageBranch)) && <div className="flex gap-1"><button type="button" onClick={() => setEditingService(service)} className="grid size-9 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)]" aria-label={`Изменить услугу ${service.name}`}><Pencil className="size-4" /></button><form action={setServiceActive}><input type="hidden" name="serviceId" value={service.id} /><input type="hidden" name="isActive" value={service.isActive ? "false" : "true"} /><input type="hidden" name="scope" value={service.scope} />{service.branchId && <input type="hidden" name="branchId" value={service.branchId} />}<button className="grid size-9 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-muted)]" aria-label={service.isActive ? `Отключить услугу ${service.name}` : `Включить услугу ${service.name}`}><Power className="size-4" /></button></form></div>}
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-        {canManage && <ServiceForm key={editingService?.id ?? "new-service"} service={editingService} categories={categories} onCancel={() => setEditingService(null)} />}
+        {(canManageGlobal || canManageBranch) && <ServiceForm key={editingService?.id ?? "new-service"} service={editingService} categories={categories} branches={branches} onCancel={() => setEditingService(null)} />}
       </div>
     </div>
   );

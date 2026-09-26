@@ -15,6 +15,9 @@ describe("treatment catalog schemas", () => {
       basePrice: "5000",
       costPrice: "",
       vatRate: "",
+      scope: "organization",
+      branchId: "",
+      priceValidFrom: "2026-09-26",
     });
 
     expect(parsed.costPrice).toBeUndefined();
@@ -31,6 +34,9 @@ describe("treatment catalog schemas", () => {
       basePrice: -1,
       costPrice: "",
       vatRate: "",
+      scope: "organization",
+      branchId: "",
+      priceValidFrom: "2026-09-26",
     });
 
     expect(result.success).toBe(false);
