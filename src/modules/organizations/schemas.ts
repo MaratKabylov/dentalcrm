@@ -6,3 +6,4 @@ export const createOrganizationSchema = z.object({
 });
 
 export const organizationIdSchema = z.uuid();
+export const branchIdSchema = z.uuid();

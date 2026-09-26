@@ -26,6 +26,10 @@ insert into public.permissions (code, description) values
   ('inventory.manage', 'Управление складом'),
   ('reports.read', 'Просмотр отчётов'),
   ('settings.manage', 'Управление настройками'),
+  ('branches.manage', 'Управление филиалами'),
+  ('branch_access.manage', 'Управление доступом пользователей к филиалам'),
+  ('directories.manage_global', 'Управление общими справочниками организации'),
+  ('directories.manage_branch', 'Управление справочниками доступных филиалов'),
   ('users.manage', 'Управление пользователями и ролями'),
   ('audit.read', 'Просмотр журнала аудита')
 on conflict (code) do update set description = excluded.description;

@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { BranchSwitcher } from "@/components/layout/branch-switcher";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { signOut } from "@/modules/auth/actions";
@@ -8,12 +9,13 @@ import type { OrganizationMembership } from "@/modules/organizations/types";
 
 type DashboardHeaderProps = {
   activeOrganizationId: string;
+  activeBranchId: string | null;
   memberships: OrganizationMembership[];
   userEmail: string;
   userId: string;
 };
 
-export function DashboardHeader({ activeOrganizationId, memberships, userEmail, userId }: DashboardHeaderProps) {
+export function DashboardHeader({ activeOrganizationId, activeBranchId, memberships, userEmail, userId }: DashboardHeaderProps) {
   const active = memberships.find((item) => item.organization.id === activeOrganizationId)!;
   const initials = userEmail.slice(0, 2).toUpperCase();
 
@@ -27,6 +29,9 @@ export function DashboardHeader({ activeOrganizationId, memberships, userEmail, 
         </div>
       </div>
       <div className="ml-auto flex items-center gap-2">
+        {activeBranchId && active.branches.some((branch) => branch.isActive) && (
+          <BranchSwitcher activeBranchId={activeBranchId} branches={active.branches} />
+        )}
         {memberships.length > 1 ? (
           <OrganizationSwitcher
             activeOrganizationId={activeOrganizationId}

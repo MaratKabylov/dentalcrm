@@ -29,6 +29,10 @@ export const PERMISSIONS = [
   "payroll.read",
   "payroll.manage",
   "settings.manage",
+  "branches.manage",
+  "branch_access.manage",
+  "directories.manage_global",
+  "directories.manage_branch",
   "users.manage",
   "audit.read",
 ] as const;
@@ -53,6 +57,10 @@ export const WRITE_PERMISSIONS = new Set<PermissionCode>([
   "inventory.manage",
   "payroll.manage",
   "settings.manage",
+  "branches.manage",
+  "branch_access.manage",
+  "directories.manage_global",
+  "directories.manage_branch",
   "users.manage",
 ]);
 

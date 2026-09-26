@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         canAccessAdmin={isSuperAdmin}
       />
       <div className="lg:pl-64">
-        <DashboardHeader activeOrganizationId={context.organization.id} memberships={memberships} userEmail={user.email ?? "user"} userId={user.id} />
+        <DashboardHeader activeOrganizationId={context.organization.id} activeBranchId={context.activeBranchId} memberships={memberships} userEmail={user.email ?? "user"} userId={user.id} />
         <ReadOnlyBanner organization={context.organization} />
         <main className="p-5 lg:p-8">{children}</main>
       </div>

@@ -16,5 +16,7 @@ describe("isWritePermission", () => {
     expect(isWritePermission("patients.read")).toBe(false);
     expect(isWritePermission("patients.create")).toBe(true);
     expect(isWritePermission("settings.manage")).toBe(true);
+    expect(isWritePermission("branch_access.manage")).toBe(true);
+    expect(isWritePermission("directories.manage_branch")).toBe(true);
   });
 });

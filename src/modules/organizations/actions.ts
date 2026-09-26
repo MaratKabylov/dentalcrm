@@ -9,10 +9,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { FormActionState } from "@/modules/auth/types";
 import { requireUser } from "@/modules/auth/repository";
 import {
+  ACTIVE_BRANCH_COOKIE,
   ACTIVE_ORGANIZATION_COOKIE,
+  getOrganizationContext,
   listCurrentUserMemberships,
 } from "@/modules/organizations/repository";
 import {
+  branchIdSchema,
   createOrganizationSchema,
   organizationIdSchema,
 } from "@/modules/organizations/schemas";
@@ -55,6 +58,7 @@ export async function createOrganization(
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
     });
+    cookieStore.delete(ACTIVE_BRANCH_COOKIE);
   } catch (error) {
     return { status: "error", message: getSafeErrorMessage(error) };
   }
@@ -74,6 +78,28 @@ export async function switchOrganization(formData: FormData) {
 
   const cookieStore = await cookies();
   cookieStore.set(ACTIVE_ORGANIZATION_COOKIE, organizationId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  cookieStore.delete(ACTIVE_BRANCH_COOKIE);
+
+  redirect("/dashboard");
+}
+
+export async function switchBranch(formData: FormData) {
+  const branchId = branchIdSchema.parse(formData.get("branchId"));
+  const context = await getOrganizationContext();
+  const branch = context?.branches.find((item) => item.id === branchId && item.isActive);
+
+  if (!context || !branch || !context.canAccessBranch(branchId)) {
+    throw new Error("Branch access denied");
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_BRANCH_COOKIE, branchId, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
